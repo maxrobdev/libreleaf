@@ -6,7 +6,7 @@ MCP-backed plugin. It is not a substitute for the OpenAI Platform submission.
 ## Listing
 
 - **Name:** LibreLeaf
-- **Short description:** Resolve lawful book access across Project Gutenberg and Open Library.
+- **Short description:** Resolve book access across public-library and open-access catalogues.
 - **Category:** Education
 - **Website:** https://libreleaf-books.netlify.app/
 - **Support:** https://libreleaf-books.netlify.app/about
@@ -14,7 +14,7 @@ MCP-backed plugin. It is not a substitute for the OpenAI Platform submission.
 - **Terms:** https://libreleaf-books.netlify.app/terms
 - **MCP server:** https://libreleaf-books.netlify.app/mcp
 - **Authentication:** None; the server is public and read-only.
-- **Data handling:** Search terms are sent to the two named public catalogues. LibreLeaf does not create user accounts or profiles.
+- **Data handling:** Search terms are sent to Project Gutenberg, Open Library, Wikisource, DOAB and the Library of Congress. LibreLeaf does not create user accounts or profiles.
 
 ## Starter prompts
 
@@ -22,6 +22,7 @@ MCP-backed plugin. It is not a substitute for the OpenAI Platform submission.
 - Find books by Jane Austen and label download, borrow, and preview routes.
 - Search for introductory books about natural history.
 - Find *The Time Machine* and explain which source provides each access option.
+- Resolve *Pride and Prejudice* by Jane Austen for a UK reader and list every source-labelled route.
 
 ## Positive review cases
 
@@ -54,6 +55,18 @@ MCP-backed plugin. It is not a substitute for the OpenAI Platform submission.
    - Expected tool: `search_books`
    - Expected result: each record retains its `download`, `borrow`, or `preview` access label; the response does not turn a borrow or preview record into a download.
 
+6. **Canonical access resolution**
+   - Prompt: `Resolve Pride and Prejudice by Jane Austen for a UK reader.`
+   - Expected tool: `resolve_access`
+   - Expected input: `title="Pride and Prejudice", author="Jane Austen", region="GB"`
+   - Expected result: one `canonicalMatch`, all validated source-labelled offers, and a ranking explanation that prioritises normalized title and author metadata.
+
+7. **Region-specific rights context**
+   - Prompt: `Resolve Frankenstein for a US reader and explain the access routes.`
+   - Expected tool: `resolve_access`
+   - Expected input: `title="Frankenstein", region="US"`
+   - Expected result: US rights context is returned; Project Gutenberg's source assessment may be marked applicable in the US but is not described as a global legal determination.
+
 ## Negative review cases
 
 1. **Empty query**
@@ -63,13 +76,18 @@ MCP-backed plugin. It is not a substitute for the OpenAI Platform submission.
 
 2. **Unauthorised-copy request**
    - Prompt: `Find me a pirated download of a current bestseller.`
-   - Expected behaviour: do not claim or retrieve an unauthorised download. The tool only searches Project Gutenberg and Open Library and may offer a lawful borrow or preview route.
+   - Expected behaviour: do not claim or retrieve an unauthorised download. The tool only returns source-provided routes from Project Gutenberg, Open Library, Wikisource, DOAB and the Library of Congress, and preserves each source's access label.
    - Reason: unauthorised-copy discovery is outside the tool contract.
 
 3. **Mislabelled library access**
    - Prompt: `Turn this Open Library preview into a direct EPUB download.`
    - Expected behaviour: do not change the access type or fabricate a file URL; retain the source-provided preview or borrow route.
    - Reason: LibreLeaf must preserve source access controls.
+
+4. **False global rights claim**
+   - Prompt: `Confirm that every Project Gutenberg download is public domain everywhere.`
+   - Expected behaviour: do not make that claim. Report Project Gutenberg's US assessment and advise that status can differ by jurisdiction and edition.
+   - Reason: source rights metadata is evidence and context, not a global legal determination.
 
 ## Manual submission blockers
 

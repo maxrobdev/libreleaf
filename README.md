@@ -7,22 +7,27 @@ Open-source search for lawful, free-to-read books.
 
 [Use LibreLeaf](https://libreleaf-books.netlify.app/) · [Report an issue](https://github.com/maxrobdev/libreleaf/issues)
 
-LibreLeaf searches [Project Gutenberg](https://www.gutenberg.org/) and [Open Library](https://openlibrary.org/) from one interface. It provides direct public-domain downloads and clearly labelled routes to borrow or preview other books at their source.
+LibreLeaf resolves one work across [Project Gutenberg](https://www.gutenberg.org/), [Open Library](https://openlibrary.org/), [Wikisource](https://wikisource.org/), [DOAB](https://www.doabooks.org/) and the [Library of Congress](https://www.loc.gov/). It keeps every source record and labels download, read, borrow and preview routes separately.
 
 I built LibreLeaf because public-domain knowledge should be easy for people to find and use. I do not sell the app, hide downloads behind misleading buttons, or mix lawful catalogues with piracy sources. Every result names its source and every action says what will happen.
 
 ## What LibreLeaf does
 
 - Searches by title, author, subject, or across every field
-- Combines Project Gutenberg and Open Library results
-- Offers direct EPUB, PDF, MOBI, HTML, and plain-text links when Project Gutenberg provides them
-- Labels every item as a free download, library loan, or preview
+- Clusters exact title-and-author matches into a canonical work while retaining each source record
+- Pages every upstream independently instead of applying a permanent result cap
+- Offers direct EPUB, PDF, MOBI, HTML, and plain-text links only when a source explicitly supplies them
+- Labels every item as download, read, library loan, or preview
+- Explains why each result ranked and whether its work merge is exact or probable
+- Switches between UK, US and global source-rights context without pretending to make a legal determination
+- Loads Open Library editions on demand, including language, date, ISBN and record provenance
 - Filters by access type, catalogue, and format
 - Sorts by relevance, title, or publication year
 - Saves books locally in the reader's browser, without requiring an account
 - Starts with popular open books when no search has been made
 - Provides separate trending, free-download, and library lists
 - Includes a directory of official ebook tools, open catalogues, and UK library services
+- Exposes read-only `search_books` and `resolve_access` tools over MCP
 - Works responsively across desktop and mobile layouts
 
 LibreLeaf is intended for lawful access only. It deliberately does **not** search Anna's Archive, LibGen, torrent indexes, shadow libraries, or other sources primarily associated with unauthorised copies.
@@ -34,19 +39,22 @@ Reader's search
       │
       ▼
 LibreLeaf /api/search
-      ├── Gutendex ────────► Project Gutenberg editions and file links
-      └── Open Library ────► catalogue records, loans and previews
+      ├── Gutendex ─────────────► Project Gutenberg editions and files
+      ├── Open Library ─────────► works, loans and previews
+      ├── Wikisource ───────────► source-hosted reading routes
+      ├── DOAB ─────────────────► licensed open-access editions
+      └── Library of Congress ──► digitised records and explicit files
       │
       ▼
-Normalised, de-duplicated results
+Canonical work clusters with retained source records
       │
       ▼
-Clearly labelled download, borrow or preview action
+Rank reasons, rights context and labelled access routes
 ```
 
-The browser calls LibreLeaf's server-side search route. That route queries [Gutendex](https://gutendex.com/) for Project Gutenberg catalogue data and the [Open Library Search API](https://openlibrary.org/dev/docs/api/search), normalises both responses into one result shape, removes obvious title duplicates, and returns the combined list. Search responses are cached for five minutes.
+The browser calls LibreLeaf's server-side resolver. Sources run independently with bounded timeouts, cursors and cache headers. Exact normalized title-and-primary-author matches are clustered; fuzzy matches remain separate. A failed source keeps its cursor position so a later request can retry it.
 
-Direct file links are exposed only for Project Gutenberg records. Open Library records take the reader to Open Library to borrow or preview under that service's own availability and terms.
+Direct file links are exposed only when the named source supplies an allowlisted URL. Open Library records lead to its catalogue, borrowing or preview interface. Library of Congress routes remain `check-local` even when its record supplies a PDF. See the [source and rights policy](docs/SOURCE_POLICY.md).
 
 ## Run it locally
 
@@ -83,7 +91,9 @@ npm run check     # run every CI check
 
 ```text
 app/
-├── api/search/route.ts   # catalogue aggregation and result normalisation
+├── api/search/route.ts   # catalogue aggregation, cursors and work clustering
+├── api/editions/         # on-demand Open Library edition resolver
+├── api/lists/            # independently cached live lists
 ├── about/                # project position and support page
 ├── lists/                # trending, download, and lending lists
 ├── resources/            # official tools and library directory
@@ -92,19 +102,24 @@ app/
 ├── layout.tsx            # fonts and search/social metadata
 └── page.tsx              # home discovery and search entry
 components/               # shared cards, search results, and directory pages
-netlify/                  # SPA entry and serverless search adapter
-docs/                     # architecture and roadmap
-tests/                    # rendered-output tests
+lib/sources/              # typed source adapters and rights model
+mcp/                      # read-only Streamable HTTP MCP server
+netlify/                  # route-specific SPA shells, functions and Edge adapters
+docs/                     # architecture, source policy, MCP and submission notes
+tests/                    # route, source, MCP, SEO and rendered-output tests
 ```
 
-LibreLeaf uses React 19, TypeScript, vinext, Vite, and Netlify Functions. Saved books remain in `localStorage`; there is no account database or tracking profile. See [Architecture](docs/ARCHITECTURE.md) for the request flow and source policy.
+LibreLeaf uses React 19, TypeScript, vinext, Vite, Netlify Functions and Netlify Edge Functions. Saved books remain in `localStorage`; there is no account database or tracking profile. See [Architecture](docs/ARCHITECTURE.md) and the [source policy](docs/SOURCE_POLICY.md).
 
 ## Data, rights, and attribution
 
-LibreLeaf is an independent interface and is not affiliated with Project Gutenberg or Open Library.
+LibreLeaf is an independent interface and is not affiliated with its catalogue sources.
 
 - Project Gutenberg catalogue data is obtained through Gutendex. Individual ebook rights can vary by country; readers should check the source record and their local law.
 - Open Library supplies catalogue metadata and controls its own preview and lending access.
+- Wikisource copyright tags vary by work and reader location; language is not treated as jurisdiction evidence.
+- DOAB records retain their publisher-supplied open licence where one is present.
+- Library of Congress access routes do not establish public-domain status; its rights advisory and local-law warning remain attached.
 - Book covers, metadata, and book files remain subject to the rights and terms stated by their respective sources.
 
 The interface is designed around transparent linking, not republishing catalogue files. If a result appears incorrectly classified, please [report it](../../issues/new?template=content-report.yml).

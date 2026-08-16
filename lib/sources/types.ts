@@ -8,10 +8,15 @@ export type CatalogueSource =
   | "Project Gutenberg"
   | "Open Library"
   | "Wikisource"
-  | "DOAB";
+  | "DOAB"
+  | "Library of Congress";
 
 export type Rights = {
-  status: "source-assessed-public-domain" | "open-licence" | "source-policy-free";
+  status:
+    | "source-assessed-public-domain"
+    | "open-licence"
+    | "source-policy-free"
+    | "source-provided-access";
   jurisdiction: string;
   note: string;
   licenceUrl?: string;

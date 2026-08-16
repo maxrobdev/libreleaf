@@ -37,6 +37,10 @@ function emptyWikisource() {
   return { batchcomplete: true, query: { searchinfo: { totalhits: 0 }, pages: [] } };
 }
 
+function emptyLibraryOfCongress() {
+  return { pagination: { current: 1, total: 0, of: 0, next: null }, results: [] };
+}
+
 test("returns work provenance, exact clusters, totals and a progressive cursor", async () => {
   const calls: URL[] = [];
   globalThis.fetch = async (input, init) => {
@@ -55,6 +59,7 @@ test("returns work provenance, exact clusters, totals and a progressive cursor",
     }
     if (url.hostname === "en.wikisource.org") return Response.json(emptyWikisource());
     if (url.hostname === "directory.doabooks.org") return Response.json([]);
+    if (url.hostname === "www.loc.gov") return Response.json(emptyLibraryOfCongress());
     assert.equal(url.searchParams.get("offset"), "0");
     assert.equal(url.searchParams.get("limit"), "32");
     assert.equal(
@@ -73,11 +78,13 @@ test("returns work provenance, exact clusters, totals and a progressive cursor",
   const response = await GET(new Request("https://libreleaf.test/api/search?q=austen&by=author"));
   const body = await response.json();
   assert.equal(response.status, 200);
+  assert.equal(body.partial, false);
+  assert.match(response.headers.get("cache-control") ?? "", /s-maxage=900/);
   assert.equal(body.books.length, 3);
   assert.equal(body.upstreamTotals.gutenberg, 80);
   assert.equal(body.upstreamTotals.openLibrary, 75);
   assert.equal(typeof body.nextCursor, "string");
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
 
   const merged = body.books.find((book: { title: string }) => book.title === "Pride and Prejudice");
   assert.equal(merged.clusterConfidence, "exact");
@@ -98,6 +105,7 @@ test("uses cursor offsets and ends pagination when both sources are exhausted", 
     }
     if (url.hostname === "en.wikisource.org") return Response.json(emptyWikisource());
     if (url.hostname === "directory.doabooks.org") return Response.json([]);
+    if (url.hostname === "www.loc.gov") return Response.json(emptyLibraryOfCongress());
     return Response.json({ numFound: 33, docs: [openLibraryBook("/works/OL1W", "Other", "Writer B")] });
   };
   let response = await GET(new Request("https://libreleaf.test/api/search?q=test"));
@@ -115,7 +123,13 @@ test("uses cursor offsets and ends pagination when both sources are exhausted", 
   response = await GET(new Request(`https://libreleaf.test/api/search?q=test&cursor=${encodeURIComponent(nextCursor)}`));
   const body = await response.json();
   assert.equal(body.nextCursor, null);
-  assert.deepEqual(body.upstreamTotals, { gutenberg: 33, openLibrary: 33, wikisource: 0, doab: null });
+  assert.deepEqual(body.upstreamTotals, {
+    gutenberg: 33,
+    openLibrary: 33,
+    wikisource: 0,
+    doab: null,
+    libraryOfCongress: 0,
+  });
 });
 
 test("retries transient Open Library failures with a smaller page and advances by that page", async () => {
@@ -127,6 +141,7 @@ test("retries transient Open Library failures with a smaller page and advances b
     }
     if (url.hostname === "en.wikisource.org") return Response.json(emptyWikisource());
     if (url.hostname === "directory.doabooks.org") return Response.json([]);
+    if (url.hostname === "www.loc.gov") return Response.json(emptyLibraryOfCongress());
     libraryCalls += 1;
     if (libraryCalls === 1) throw new DOMException("timed out", "TimeoutError");
     assert.equal(url.searchParams.get("limit"), "16");
@@ -155,17 +170,21 @@ test("returns partial results and preserves a timed-out source for retry", async
     const url = new URL(String(input));
     if (url.hostname === "en.wikisource.org") return Response.json(emptyWikisource());
     if (url.hostname === "directory.doabooks.org") return Response.json([]);
+    if (url.hostname === "www.loc.gov") return Response.json(emptyLibraryOfCongress());
     if (url.hostname === "gutendex.com") {
       return Response.json({ count: 1, next: null, results: [gutenbergBook(1, "One", "Writer, A")] });
     }
     if (url.hostname === "en.wikisource.org") return Response.json(emptyWikisource());
     if (url.hostname === "directory.doabooks.org") return Response.json([]);
+    if (url.hostname === "www.loc.gov") return Response.json(emptyLibraryOfCongress());
     throw new DOMException("timed out", "TimeoutError");
   };
   let response = await GET(new Request("https://libreleaf.test/api/search?q=test"));
   let body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.sources.openLibrary, "timeout");
+  assert.equal(body.partial, true);
+  assert.match(response.headers.get("cache-control") ?? "", /s-maxage=60/);
   assert.equal(body.books.length, 1);
 
   globalThis.fetch = async (input) => {
@@ -225,6 +244,7 @@ test("adds Wikisource and DOAB routes with language, licence and selected rights
         bitstreams: [],
       }]);
     }
+    if (url.hostname === "www.loc.gov") return Response.json(emptyLibraryOfCongress());
     throw new Error(`Unexpected URL ${url}`);
   };
 
@@ -248,4 +268,111 @@ test("adds Wikisource and DOAB routes with language, licence and selected rights
 
   const gutenberg = body.books.find((book: { source: string }) => book.source === "Project Gutenberg");
   assert.equal(gutenberg.offers[0].rights.applicability, "source-jurisdiction-only");
+});
+
+test("adds paged Library of Congress access without inferring public-domain status", async () => {
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "gutendex.com") return Response.json({ count: 0, next: null, results: [] });
+    if (url.hostname === "openlibrary.org") return Response.json({ numFound: 0, docs: [] });
+    if (url.hostname === "en.wikisource.org") return Response.json(emptyWikisource());
+    if (url.hostname === "directory.doabooks.org") return Response.json([]);
+    assert.equal(url.hostname, "www.loc.gov");
+    assert.equal(url.pathname, "/books/");
+    assert.equal(url.searchParams.get("fa"), "digitized:true|access-restricted:false");
+    assert.equal(url.searchParams.get("at"), "pagination,results");
+    assert.equal(url.searchParams.get("c"), "20");
+    assert.equal(url.searchParams.get("sp"), "1");
+    return Response.json({
+      pagination: { current: 1, total: 2, of: 21, next: "https://www.loc.gov/books/?sp=2" },
+      results: [{
+        id: "http://www.loc.gov/item/53051218/",
+        url: "https://www.loc.gov/item/53051218/",
+        title: "Frankenstein; or, The modern Prometheus.",
+        contributor: ["shelley, mary wollstonecraft"],
+        date: "1818",
+        language: ["english"],
+        access_restricted: false,
+        digitized: true,
+        image_url: ["https://tile.loc.gov/image-services/frankenstein.jpg"],
+        rights_advisory: ["Rights assessment not supplied for every country."],
+        resources: [{
+          caption: "Page view volume 1",
+          pdf: "https://tile.loc.gov/storage-services/frankenstein.pdf",
+          url: "https://www.loc.gov/resource/frankenstein/",
+        }, { pdf: "https://example.com/not-a-library-file.pdf" }],
+      }],
+    });
+  };
+
+  let response = await GET(new Request("https://libreleaf.test/api/search?q=frankenstein&region=GB"));
+  let body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.sources.libraryOfCongress, "ok");
+  assert.equal(body.upstreamTotals.libraryOfCongress, 21);
+  assert.equal(typeof body.nextCursor, "string");
+  const book = body.books[0];
+  assert.equal(book.source, "Library of Congress");
+  assert.equal(book.year, 1818);
+  assert.equal(book.offers.length, 2);
+  assert.equal(book.offers[0].access, "download");
+  assert.equal(book.offers[0].format, "PDF");
+  assert.equal(book.offers[0].rights.status, "source-provided-access");
+  assert.equal(book.offers[0].rights.applicability, "check-local");
+  assert.match(book.offers[0].rights.note, /does not establish public-domain status in the UK/);
+
+  const cursor = body.nextCursor;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    assert.equal(url.hostname, "www.loc.gov");
+    assert.equal(url.searchParams.get("sp"), "2");
+    return Response.json({
+      pagination: { current: 2, total: 2, of: 21, next: null },
+      results: [{
+        id: "https://www.loc.gov/item/restricted/",
+        url: "https://www.loc.gov/item/restricted/",
+        title: "Restricted item",
+        access_restricted: true,
+        digitized: true,
+        resources: [{ pdf: "https://tile.loc.gov/storage-services/restricted.pdf" }],
+      }],
+    });
+  };
+  response = await GET(new Request(`https://libreleaf.test/api/search?q=frankenstein&region=GB&cursor=${encodeURIComponent(cursor)}`));
+  body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.nextCursor, null);
+  assert.equal(body.sources.libraryOfCongress, "ok");
+  assert.equal(body.books.length, 0);
+});
+
+test("keeps the DOAB cursor unchanged after a timeout so it can be retried", async () => {
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "gutendex.com") return Response.json({ count: 0, next: null, results: [] });
+    if (url.hostname === "openlibrary.org") return Response.json({ numFound: 0, docs: [] });
+    if (url.hostname === "en.wikisource.org") return Response.json(emptyWikisource());
+    if (url.hostname === "www.loc.gov") return Response.json(emptyLibraryOfCongress());
+    assert.equal(url.hostname, "directory.doabooks.org");
+    throw new DOMException("timed out", "TimeoutError");
+  };
+
+  let response = await GET(new Request("https://libreleaf.test/api/search?q=open"));
+  let body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.sources.doab, "timeout");
+  assert.equal(typeof body.nextCursor, "string");
+
+  const cursor = body.nextCursor;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    assert.equal(url.hostname, "directory.doabooks.org");
+    assert.equal(url.searchParams.get("offset"), "0");
+    return Response.json([]);
+  };
+  response = await GET(new Request(`https://libreleaf.test/api/search?q=open&cursor=${encodeURIComponent(cursor)}`));
+  body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.sources.doab, "ok");
+  assert.equal(body.nextCursor, null);
 });

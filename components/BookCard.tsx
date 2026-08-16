@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import styles from "./SearchResultsPage.module.css";
 
 export type FormatLink = {
@@ -8,7 +8,7 @@ export type FormatLink = {
   url: string;
 };
 
-export type CatalogueSource = "Project Gutenberg" | "Open Library" | "Wikisource" | "DOAB";
+export type CatalogueSource = "Project Gutenberg" | "Open Library" | "Wikisource" | "DOAB" | "Library of Congress";
 export type AccessType = "download" | "borrow" | "preview" | "read" | "listen";
 
 export type AccessOffer = {
@@ -19,7 +19,7 @@ export type AccessOffer = {
   access: AccessType;
   language?: string;
   rights?: {
-    status: "source-assessed-public-domain" | "open-licence" | "source-policy-free";
+    status: "source-assessed-public-domain" | "open-licence" | "source-policy-free" | "source-provided-access";
     jurisdiction: string;
     note: string;
     licenceUrl?: string;
@@ -59,6 +59,7 @@ export type Book = {
 export type SearchPayload = {
   query: string;
   books: Book[];
+  partial?: boolean;
   counts: { total: number; download: number; borrow: number; preview: number; read?: number; listen?: number };
   nextCursor?: string | null;
   upstreamTotals?: {
@@ -66,15 +67,68 @@ export type SearchPayload = {
     openLibrary: number | null;
     wikisource?: number | null;
     doab?: number | null;
+    libraryOfCongress?: number | null;
   };
   sources?: {
     gutenberg: "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
     openLibrary: "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
     wikisource?: "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
     doab?: "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
+    libraryOfCongress?: "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
   };
   rightsContext?: { region: "GB" | "US" | "GLOBAL"; label: string; note: string };
 };
+
+type EditionAccessLink = {
+  kind: "catalogue" | "availability";
+  label: string;
+  url: string;
+  source: "Open Library" | "Internet Archive";
+  availability: "not-checked";
+};
+
+type ResolvedEdition = {
+  key: string;
+  title: string;
+  publishDate?: string;
+  publishYear?: number;
+  languages: { code: string; name?: string }[];
+  isbn10: string[];
+  isbn13: string[];
+  publishers: string[];
+  physicalFormat?: string;
+  numberOfPages?: number;
+  accessLinks: EditionAccessLink[];
+  rights: { status: "not-assessed"; note: string };
+  provenance: {
+    source: "Open Library";
+    workKey: string;
+    editionKey: string;
+    recordUrl: string;
+    apiRecordUrl: string;
+  };
+};
+
+type EditionsPayload = {
+  workKey: string;
+  total: number;
+  returned: number;
+  partial: boolean;
+  limit: number;
+  editions: ResolvedEdition[];
+  provenance: {
+    source: "Open Library";
+    workUrl: string;
+    editionsApiUrl: string;
+    fetchedAt: string;
+  };
+};
+
+type EditionsState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; payload: EditionsPayload };
 
 type DisplayRoute = {
   label: string;
@@ -99,6 +153,7 @@ function catalogueSourceFor(value: string): CatalogueSource {
   if (value.includes("Project Gutenberg")) return "Project Gutenberg";
   if (value.includes("Wikisource")) return "Wikisource";
   if (value.includes("DOAB")) return "DOAB";
+  if (value.includes("Library of Congress")) return "Library of Congress";
   return "Open Library";
 }
 
@@ -139,6 +194,22 @@ function routesForBook(book: Book): DisplayRoute[] {
   return routes;
 }
 
+function representativeRoutes(routes: DisplayRoute[], limit = 6) {
+  const firstBySource: DisplayRoute[] = [];
+  const remaining: DisplayRoute[] = [];
+  const seenSources = new Set<string>();
+
+  for (const route of routes) {
+    if (seenSources.has(route.source)) remaining.push(route);
+    else {
+      seenSources.add(route.source);
+      firstBySource.push(route);
+    }
+  }
+
+  return [...firstBySource, ...remaining].slice(0, limit);
+}
+
 function sourceRecordsForBook(book: Book): SourceRecord[] {
   if (book.sourceRecords?.length) return book.sourceRecords;
   const source = catalogueSourceFor(book.source);
@@ -173,6 +244,34 @@ export function BookCard({ book, saved, onToggleSaved }: BookCardProps) {
   const why = book.why?.join(" · ");
   const hasGutenbergRecord = sourceRecords.some((record) => record.source === "Project Gutenberg") || book.source === "Project Gutenberg";
   const [panelOpen, setPanelOpen] = useState(false);
+  const [showAllRoutes, setShowAllRoutes] = useState(false);
+  const [editionsState, setEditionsState] = useState<EditionsState>({ status: "idle" });
+  const editionsHeadingId = useId();
+  const visibleRoutes = showAllRoutes ? routes : representativeRoutes(routes);
+
+  async function loadEditions() {
+    if (!book.workKey || editionsState.status === "loading") return;
+    setEditionsState({ status: "loading" });
+    try {
+      const response = await fetch(`/api/editions?workKey=${encodeURIComponent(book.workKey)}`);
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        const message = typeof body === "object" && body !== null && "message" in body && typeof body.message === "string"
+          ? body.message
+          : "Edition records are temporarily unavailable.";
+        throw new Error(message);
+      }
+      if (typeof body !== "object" || body === null || !("editions" in body) || !Array.isArray(body.editions)) {
+        throw new Error("Open Library returned an unexpected editions response.");
+      }
+      setEditionsState({ status: "ready", payload: body as EditionsPayload });
+    } catch (error) {
+      setEditionsState({
+        status: "error",
+        message: error instanceof Error ? error.message : "Edition records are temporarily unavailable.",
+      });
+    }
+  }
 
   return (
     <article className="book-card">
@@ -187,18 +286,23 @@ export function BookCard({ book, saved, onToggleSaved }: BookCardProps) {
         <button className={`save-button ${saved ? "saved" : ""}`} onClick={onToggleSaved} aria-label={`${saved ? "Remove" : "Save"} ${book.title}`} title={saved ? "Remove from saved books" : "Save book"}>{saved ? "♥" : "♡"}</button>
         {panelOpen ? (
           <div className="cover-panel" aria-label={`Available options for ${book.title}`}>
-            <button className="panel-close" onClick={() => setPanelOpen(false)} aria-label="Close book options">Close ×</button>
+            <button className="panel-close" onClick={() => { setPanelOpen(false); setShowAllRoutes(false); }} aria-label="Close book options">Close ×</button>
             <p className="eyebrow">ACCESS ROUTES</p>
             <h3>{routes.length > 1 ? `${routes.length} routes found` : "Available route"}</h3>
             {why ? <div className={styles.why}><strong>Why this result</strong><span>{why}</span>{book.clusterConfidence ? <small>{confidenceLabel(book.clusterConfidence)}</small> : null}</div> : null}
             <div className="panel-links">
-              {routes.map((route) => (
+              {visibleRoutes.map((route) => (
                 <a className={styles.route} key={`${book.workKey ?? book.id}-${route.url}`} href={route.url} target="_blank" rel="noreferrer" download={route.access === "download"}>
                   <span>{route.label}<small>{route.source}{route.applicability ? ` · ${route.applicability === "verified" ? "licence/source context verified" : route.applicability === "source-jurisdiction-only" ? "source jurisdiction only; check locally" : "check local rights"}` : ""}{route.note ? ` · ${route.note}` : ""}</small></span>
                   <span>{route.access === "download" ? "↓" : "↗"}</span>
                 </a>
               ))}
             </div>
+            {routes.length > 6 ? (
+              <button className={styles.routeToggle} type="button" aria-expanded={showAllRoutes} onClick={() => setShowAllRoutes((current) => !current)}>
+                {showAllRoutes ? "Show representative routes" : `Show all ${routes.length} routes`}
+              </button>
+            ) : null}
             <div className={styles.provenance}>
               <strong>Source records</strong>
               {sourceRecords.map((record, index) => {
@@ -206,6 +310,61 @@ export function BookCard({ book, saved, onToggleSaved }: BookCardProps) {
                 return <a href={record.detailsUrl} target="_blank" rel="noreferrer" key={`${record.source}-${record.recordId || index}`}>{label} ↗</a>;
               })}
             </div>
+            {book.workKey ? (
+              <section className={styles.editions} aria-labelledby={editionsHeadingId} aria-busy={editionsState.status === "loading"}>
+                <div className={styles.editionsHeading}>
+                  <strong id={editionsHeadingId}>Editions</strong>
+                  {editionsState.status === "ready" ? <span>{editionsState.payload.returned} of {editionsState.payload.total}</span> : null}
+                </div>
+                {editionsState.status === "idle" ? (
+                  <>
+                    <p>Compare language, date, ISBN and edition-specific access records.</p>
+                    <button type="button" onClick={loadEditions}>Load editions</button>
+                  </>
+                ) : null}
+                {editionsState.status === "loading" ? <p className={styles.editionStatus} role="status" aria-live="polite">Loading Open Library editions…</p> : null}
+                {editionsState.status === "error" ? (
+                  <div className={styles.editionError} role="alert">
+                    <span>{editionsState.message}</span>
+                    <button type="button" onClick={loadEditions}>Retry editions</button>
+                  </div>
+                ) : null}
+                {editionsState.status === "ready" ? (
+                  <>
+                    {editionsState.payload.editions.length ? (
+                      <ul className={styles.editionList}>
+                        {editionsState.payload.editions.map((edition) => {
+                          const languages = edition.languages.map((language) => language.name ?? language.code.toUpperCase()).join(", ");
+                          const isbn = edition.isbn13[0] ?? edition.isbn10[0];
+                          const facts = [
+                            edition.publishYear ? String(edition.publishYear) : edition.publishDate,
+                            languages,
+                            edition.physicalFormat,
+                            edition.numberOfPages ? `${edition.numberOfPages} pages` : undefined,
+                          ].filter(Boolean).join(" · ");
+                          return (
+                            <li key={edition.key}>
+                              <strong>{edition.title}</strong>
+                              {facts ? <span>{facts}</span> : null}
+                              {edition.publishers[0] || isbn ? <small>{[edition.publishers[0], isbn ? `ISBN ${isbn}` : undefined].filter(Boolean).join(" · ")}</small> : null}
+                              <div className={styles.editionLinks}>
+                                {edition.accessLinks.map((link) => (
+                                  <a key={`${edition.key}-${link.url}`} href={link.url} target="_blank" rel="noreferrer">
+                                    {link.label} <span aria-hidden="true">↗</span><small>{link.source} · availability not checked</small>
+                                  </a>
+                                ))}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : <p className={styles.editionStatus}>No edition records were returned for this work.</p>}
+                    {editionsState.payload.partial ? <p className={styles.editionStatus}>Showing the first {editionsState.payload.returned} of {editionsState.payload.total} catalogue records.</p> : null}
+                    <p className={styles.editionRights}>Edition metadata and links do not establish copyright or access rights. Check the edition record and the law where you are.</p>
+                  </>
+                ) : null}
+              </section>
+            ) : null}
             {hasGutenbergRecord ? <p className={styles.jurisdiction}>Project Gutenberg assesses public-domain status under US law. Check the law where you are.</p> : null}
           </div>
         ) : null}
@@ -224,7 +383,7 @@ export function BookCard({ book, saved, onToggleSaved }: BookCardProps) {
               {book.access === "borrow" ? "Borrow book" : "View book"}<span aria-hidden="true">↗</span>
             </a>
           )}
-          {(routes.length > 1 || sourceRecords.length > 1 || why) ? <button className="format-button" onClick={() => setPanelOpen(true)}>Details</button> : null}
+          {(routes.length > 1 || sourceRecords.length > 1 || why || book.workKey) ? <button className="format-button" onClick={() => setPanelOpen(true)}>Details</button> : null}
         </div>
       </div>
     </article>

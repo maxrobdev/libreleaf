@@ -3,7 +3,7 @@ import SearchResultsPage from "../../components/SearchResultsPage";
 
 export const metadata: Metadata = {
   title: "Resolve book access",
-  description: "Search a title or author and compare source-labelled download, borrow and preview routes across Project Gutenberg and Open Library.",
+  description: "Search a title or author across open catalogues and compare source-labelled download, read, borrow and preview routes.",
   alternates: { canonical: "/search" },
 };
 

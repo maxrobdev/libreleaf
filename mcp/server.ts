@@ -9,6 +9,7 @@ const DEFAULT_TOOL_RESULTS = 10;
 const searchBySchema = z.enum(["q", "title", "author", "subject"]);
 const rightsRegionSchema = z.enum(["GB", "US", "GLOBAL"]);
 const accessSchema = z.enum(["download", "borrow", "preview", "read", "listen"]);
+const catalogueSourceSchema = z.enum(["Project Gutenberg", "Open Library", "Wikisource", "DOAB", "Library of Congress"]);
 
 const formatSchema = z.object({
   label: z.string(),
@@ -16,7 +17,7 @@ const formatSchema = z.object({
 });
 
 const rightsSchema = z.object({
-  status: z.enum(["source-assessed-public-domain", "open-licence", "source-policy-free"]),
+  status: z.enum(["source-assessed-public-domain", "open-licence", "source-policy-free", "source-provided-access"]),
   jurisdiction: z.string(),
   note: z.string(),
   licenceUrl: z.string().url().optional(),
@@ -26,11 +27,21 @@ const rightsSchema = z.object({
 const offerSchema = z.object({
   label: z.string(),
   url: z.string().url(),
-  source: z.enum(["Project Gutenberg", "Open Library", "Wikisource", "DOAB"]),
+  source: catalogueSourceSchema,
   access: accessSchema,
   format: z.string().optional(),
   language: z.string().optional(),
   rights: rightsSchema.optional(),
+});
+
+const sourceRecordSchema = z.object({
+  source: catalogueSourceSchema,
+  recordId: z.string(),
+  detailsUrl: z.string().url(),
+  workKey: z.string().optional(),
+  language: z.string().optional(),
+  country: z.string().optional(),
+  offers: z.array(offerSchema),
 });
 
 const bookSchema = z.object({
@@ -45,7 +56,11 @@ const bookSchema = z.object({
   detailsUrl: z.string().url(),
   language: z.string().optional(),
   country: z.string().optional(),
+  workKey: z.string().optional(),
+  clusterConfidence: z.enum(["exact", "probable"]).optional(),
+  why: z.array(z.string()).optional(),
   offers: z.array(offerSchema).optional(),
+  sourceRecords: z.array(sourceRecordSchema).optional(),
 });
 
 const sourceStatusSchema = z.object({
@@ -53,6 +68,7 @@ const sourceStatusSchema = z.object({
   openLibrary: z.enum(["ok", "unavailable", "timeout", "rate-limited", "exhausted"]),
   wikisource: z.enum(["ok", "unavailable", "timeout", "rate-limited", "exhausted"]),
   doab: z.enum(["ok", "unavailable", "timeout", "rate-limited", "exhausted"]),
+  libraryOfCongress: z.enum(["ok", "unavailable", "timeout", "rate-limited", "exhausted"]),
 });
 
 const searchResultSchema = z.object({
@@ -66,8 +82,24 @@ const searchResultSchema = z.object({
   books: z.array(bookSchema),
 });
 
+const resolveAccessResultSchema = z.object({
+  query: z.object({ title: z.string(), author: z.string().optional() }),
+  rightsContext: searchResultSchema.shape.rightsContext,
+  canonicalMatch: bookSchema.nullable(),
+  offers: z.array(offerSchema),
+  ranking: z.object({
+    quality: z.enum(["exact", "strong", "possible", "none"]),
+    score: z.number().nonnegative(),
+    candidatesConsidered: z.number().int().nonnegative(),
+    explanation: z.array(z.string()),
+  }),
+  partial: z.boolean(),
+  sources: sourceStatusSchema,
+});
+
 type SearchBy = z.infer<typeof searchBySchema>;
 type SearchResult = z.infer<typeof searchResultSchema>;
+type ResolveAccessResult = z.infer<typeof resolveAccessResultSchema>;
 type SearchRouteHandler = (request: Request) => Promise<Response>;
 
 export type SearchDependencies = {
@@ -87,12 +119,35 @@ function allowedSourceUrl(value: unknown, kind: "catalogue" | "download"): strin
     const isOpenLibrary = url.hostname === "openlibrary.org" || url.hostname.endsWith(".openlibrary.org");
     const isWikisource = url.hostname === "wikisource.org" || url.hostname.endsWith(".wikisource.org");
     const isDoab = url.hostname === "directory.doabooks.org";
+    const isOapen = url.hostname === "oapen.org" || url.hostname.endsWith(".oapen.org");
     const isDoi = url.hostname === "doi.org";
-    const allowed = kind === "download" ? isGutenberg || isDoab : isGutenberg || isOpenLibrary || isWikisource || isDoab || isDoi;
+    const isLibraryOfCongress = url.hostname === "loc.gov" || url.hostname.endsWith(".loc.gov");
+    const allowed = kind === "download"
+      ? isGutenberg || isDoab || isOapen || isLibraryOfCongress
+      : isGutenberg || isOpenLibrary || isWikisource || isDoab || isOapen || isDoi || isLibraryOfCongress;
     return allowed ? url.toString() : undefined;
   } catch {
     return undefined;
   }
+}
+
+function publicOffer(value: unknown): z.infer<typeof offerSchema> | undefined {
+  if (!isRecord(value) || typeof value.label !== "string") return undefined;
+  const access = accessSchema.safeParse(value.access);
+  const source = catalogueSourceSchema.safeParse(value.source);
+  if (!access.success || !source.success) return undefined;
+  const url = allowedSourceUrl(value.url, access.data === "download" ? "download" : "catalogue");
+  if (!url) return undefined;
+  const rights = rightsSchema.safeParse(value.rights);
+  return {
+    label: value.label,
+    url,
+    source: source.data,
+    access: access.data,
+    format: typeof value.format === "string" ? value.format : undefined,
+    language: typeof value.language === "string" ? value.language : undefined,
+    rights: rights.success ? rights.data : undefined,
+  };
 }
 
 function publicBook(value: unknown): z.infer<typeof bookSchema> | undefined {
@@ -120,23 +175,32 @@ function publicBook(value: unknown): z.infer<typeof bookSchema> | undefined {
     detailsUrl,
     language: value.language,
     country: value.country,
+    workKey: value.workKey,
+    clusterConfidence: value.clusterConfidence,
+    why: Array.isArray(value.why) ? value.why.filter((reason): reason is string => typeof reason === "string").slice(0, 12) : undefined,
     offers: Array.isArray(value.offers)
-      ? value.offers.slice(0, 8).flatMap((offer) => {
-          if (!isRecord(offer) || typeof offer.label !== "string") return [];
-          const access = accessSchema.safeParse(offer.access);
-          const source = z.enum(["Project Gutenberg", "Open Library", "Wikisource", "DOAB"]).safeParse(offer.source);
-          if (!access.success || !source.success) return [];
-          const url = allowedSourceUrl(offer.url, access.data === "download" ? "download" : "catalogue");
-          if (!url) return [];
-          const rights = rightsSchema.safeParse(offer.rights);
+      ? value.offers.flatMap((offer) => {
+          const parsedOffer = publicOffer(offer);
+          return parsedOffer ? [parsedOffer] : [];
+        })
+      : [],
+    sourceRecords: Array.isArray(value.sourceRecords)
+      ? value.sourceRecords.flatMap((record) => {
+          if (!isRecord(record)) return [];
+          const source = catalogueSourceSchema.safeParse(record.source);
+          const detailsUrl = allowedSourceUrl(record.detailsUrl, "catalogue");
+          if (!source.success || !detailsUrl || typeof record.recordId !== "string") return [];
           return [{
-            label: offer.label,
-            url,
             source: source.data,
-            access: access.data,
-            format: typeof offer.format === "string" ? offer.format : undefined,
-            language: typeof offer.language === "string" ? offer.language : undefined,
-            rights: rights.success ? rights.data : undefined,
+            recordId: record.recordId,
+            detailsUrl,
+            workKey: typeof record.workKey === "string" ? record.workKey : undefined,
+            language: typeof record.language === "string" ? record.language : undefined,
+            country: typeof record.country === "string" ? record.country : undefined,
+            offers: Array.isArray(record.offers) ? record.offers.flatMap((offer) => {
+              const parsedOffer = publicOffer(offer);
+              return parsedOffer ? [parsedOffer] : [];
+            }) : [],
           }];
         })
       : [],
@@ -147,7 +211,7 @@ function publicBook(value: unknown): z.infer<typeof bookSchema> | undefined {
 
 function interleaveSources(books: z.infer<typeof bookSchema>[]) {
   const combined = books.filter((book) => book.source.includes(" + "));
-  const groups = ["Project Gutenberg", "Open Library", "Wikisource", "DOAB"]
+  const groups = catalogueSourceSchema.options
     .map((source) => books.filter((book) => book.source === source));
   const interleaved: z.infer<typeof bookSchema>[] = [];
 
@@ -193,7 +257,7 @@ export async function searchBooks(
   const sourceParse = sourceStatusSchema.safeParse(payload.sources);
   const sources = sourceParse.success
     ? sourceParse.data
-    : { gutenberg: "unavailable" as const, openLibrary: "unavailable" as const, wikisource: "unavailable" as const, doab: "unavailable" as const };
+    : { gutenberg: "unavailable" as const, openLibrary: "unavailable" as const, wikisource: "unavailable" as const, doab: "unavailable" as const, libraryOfCongress: "unavailable" as const };
   const contextParse = searchResultSchema.shape.rightsContext.safeParse(payload.rightsContext);
   const rankedBooks = interleaveSources(books);
   const result = {
@@ -202,13 +266,110 @@ export async function searchBooks(
     rightsContext: contextParse.success ? contextParse.data : { region: input.region ?? "GB", label: input.region === "US" ? "United States" : input.region === "GLOBAL" ? "Global / location not specified" : "United Kingdom", note: "Check local law and edition-specific terms." },
     returned: Math.min(input.limit, books.length),
     available: books.length,
-    partial: [sources.gutenberg, sources.openLibrary, sources.wikisource, sources.doab]
+    partial: [sources.gutenberg, sources.openLibrary, sources.wikisource, sources.doab, sources.libraryOfCongress]
       .some((status) => status !== "ok" && status !== "exhausted"),
     sources,
     books: rankedBooks.slice(0, input.limit),
   };
 
   return searchResultSchema.parse(result);
+}
+
+function normaliseMatchText(value: string) {
+  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function normaliseMatchAuthor(value: string) {
+  return normaliseMatchText(value).split(" ").filter(Boolean).sort().join(" ");
+}
+
+function tokenSimilarity(left: string, right: string) {
+  const leftTokens = new Set(left.split(" ").filter(Boolean));
+  const rightTokens = new Set(right.split(" ").filter(Boolean));
+  if (!leftTokens.size || !rightTokens.size) return 0;
+  const intersection = [...leftTokens].filter((token) => rightTokens.has(token)).length;
+  const union = new Set([...leftTokens, ...rightTokens]).size;
+  return intersection / union;
+}
+
+function rankBook(book: z.infer<typeof bookSchema>, title: string, author?: string) {
+  const wantedTitle = normaliseMatchText(title);
+  const candidateTitle = normaliseMatchText(book.title);
+  const explanation: string[] = [];
+  let score = 0;
+
+  if (candidateTitle === wantedTitle) {
+    score += 100;
+    explanation.push("Exact normalized title match.");
+  } else if (candidateTitle.includes(wantedTitle) || wantedTitle.includes(candidateTitle)) {
+    score += 75;
+    explanation.push("Strong partial title match.");
+  } else {
+    const similarity = tokenSimilarity(wantedTitle, candidateTitle);
+    score += Math.round(similarity * 60);
+    explanation.push(`Title token overlap: ${Math.round(similarity * 100)}%.`);
+  }
+
+  if (author) {
+    const wantedAuthor = normaliseMatchAuthor(author);
+    const candidateAuthors = book.authors.map(normaliseMatchAuthor);
+    if (candidateAuthors.some((candidate) => candidate === wantedAuthor)) {
+      score += 40;
+      explanation.push("Exact normalized author match.");
+    } else if (candidateAuthors.some((candidate) => candidate.includes(wantedAuthor) || wantedAuthor.includes(candidate))) {
+      score += 30;
+      explanation.push("Strong partial author match.");
+    } else {
+      const similarity = Math.max(0, ...candidateAuthors.map((candidate) => tokenSimilarity(wantedAuthor, candidate)));
+      score += Math.round(similarity * 25);
+      explanation.push(`Best author token overlap: ${Math.round(similarity * 100)}%.`);
+    }
+  }
+
+  const independentSources = new Set((book.offers ?? []).map((offer) => offer.source)).size;
+  const routeCount = book.offers?.length ?? 0;
+  score += Math.min(independentSources, 4) * 2 + Math.min(routeCount, 5);
+  explanation.push(`${routeCount} validated access route${routeCount === 1 ? "" : "s"} across ${independentSources} source${independentSources === 1 ? "" : "s"}.`);
+
+  return { book, score, explanation };
+}
+
+function uniqueOffers(offers: z.infer<typeof offerSchema>[]) {
+  return offers.filter((offer, index, all) => all.findIndex((item) => item.source === offer.source && item.access === offer.access && item.url === offer.url) === index);
+}
+
+export async function resolveAccess(
+  input: { title: string; author?: string; region: z.infer<typeof rightsRegionSchema> },
+  dependencies: SearchDependencies = {},
+): Promise<ResolveAccessResult> {
+  const search = await searchBooks(
+    { query: input.title, searchBy: "title", limit: MAX_TOOL_RESULTS, region: input.region },
+    dependencies,
+  );
+  const ranked = search.books
+    .map((book) => rankBook(book, input.title, input.author))
+    .sort((left, right) => right.score - left.score || right.book.offers!.length - left.book.offers!.length || left.book.title.localeCompare(right.book.title));
+  const best = ranked[0];
+  const match = best?.book ?? null;
+  const quality = !best ? "none" : best.score >= (input.author ? 140 : 100) ? "exact" : best.score >= 75 ? "strong" : "possible";
+  const explanation = best
+    ? [...best.explanation, "Ranking prioritizes title, then the optional author; ties prefer more independently sourced access routes."]
+    : ["No validated catalogue match was returned."];
+
+  return resolveAccessResultSchema.parse({
+    query: { title: input.title, author: input.author },
+    rightsContext: search.rightsContext,
+    canonicalMatch: match,
+    offers: match ? uniqueOffers(match.offers ?? []) : [],
+    ranking: {
+      quality,
+      score: best?.score ?? 0,
+      candidatesConsidered: search.books.length,
+      explanation,
+    },
+    partial: search.partial,
+    sources: search.sources,
+  });
 }
 
 export function createLibreLeafMcpServer(dependencies: SearchDependencies = {}) {
@@ -225,7 +386,7 @@ export function createLibreLeafMcpServer(dependencies: SearchDependencies = {}) 
     {
       title: "Search open books",
       description:
-        "Search Project Gutenberg, Open Library, Wikisource and DOAB by keywords, title, author, or subject. Returns source-labelled download, borrow, preview and read routes with rights context.",
+        "Search Project Gutenberg, Open Library, Wikisource, DOAB and the Library of Congress by keywords, title, author, or subject. Returns source-labelled download, borrow, preview and read routes with rights context.",
       inputSchema: {
         query: z.string().trim().min(1).max(120).describe("Book title, author, subject, or keywords."),
         search_by: searchBySchema
@@ -279,6 +440,44 @@ export function createLibreLeafMcpServer(dependencies: SearchDependencies = {}) 
         const message = error instanceof Error
           ? error.message
           : "The book search could not be completed.";
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: message }],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "resolve_access",
+    {
+      title: "Resolve book access",
+      description:
+        "Resolve a title to one canonical best match and return every validated, source-labelled access route. Optional author disambiguates works; region controls rights context without making a legal determination.",
+      inputSchema: {
+        title: z.string().trim().min(1).max(120).describe("Book title to resolve."),
+        author: z.string().trim().min(1).max(120).optional().describe("Optional author for disambiguation."),
+        region: rightsRegionSchema.default("GB").describe("Rights context: GB, US, or GLOBAL when location is unknown."),
+      },
+      outputSchema: resolveAccessResultSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ title, author, region }) => {
+      try {
+        const result = await resolveAccess({ title, author, region }, dependencies);
+        const summary = result.canonicalMatch
+          ? `Resolved “${title}” to “${result.canonicalMatch.title}” (${result.ranking.quality}; ${result.offers.length} validated access route${result.offers.length === 1 ? "" : "s"}).`
+          : `No validated catalogue match was found for “${title}”.`;
+        return {
+          structuredContent: result,
+          content: [{ type: "text" as const, text: summary }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Book access could not be resolved.";
         return {
           isError: true,
           content: [{ type: "text" as const, text: message }],

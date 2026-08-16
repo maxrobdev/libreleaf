@@ -1,4 +1,5 @@
 import { doabAdapter } from "../../../lib/sources/doab.ts";
+import { libraryOfCongressAdapter } from "../../../lib/sources/library-of-congress.ts";
 import type {
   Access,
   NormalisedBook,
@@ -43,6 +44,9 @@ type CursorState = {
   dd: boolean;
   wt: number | null;
   dt: number | null;
+  l: number;
+  ld: boolean;
+  lt: number | null;
 };
 
 type GutendexPage = {
@@ -60,14 +64,15 @@ type OpenLibraryPage = {
 
 const GUTENDEX_PAGE_SIZE = 32;
 const OPEN_LIBRARY_PAGE_SIZE = 32;
+const LIBRARY_OF_CONGRESS_PAGE_SIZE = 20;
 const MAX_PAGE = 10_000;
 const MAX_OPEN_LIBRARY_OFFSET = (MAX_PAGE - 1) * OPEN_LIBRARY_PAGE_SIZE;
 const MAX_ADAPTER_OFFSET = 500_000;
-const MAX_CURSOR_LENGTH = 256;
+const MAX_CURSOR_LENGTH = 384;
 const MAX_UPSTREAM_TOTAL = 100_000_000;
 const UPSTREAM_TIMEOUT_MS = 6_000;
-const OPEN_LIBRARY_TIMEOUT_MS = 4_000;
-const OPEN_LIBRARY_RETRY_TIMEOUT_MS = 2_000;
+const OPEN_LIBRARY_TIMEOUT_MS = 2_000;
+const OPEN_LIBRARY_RETRY_TIMEOUT_MS = 1_000;
 const OPEN_LIBRARY_RETRY_PAGE_SIZE = 16;
 const OPEN_LIBRARY_FIELDS = "key,title,author_name,first_publish_year,cover_i,ebook_access";
 
@@ -75,6 +80,12 @@ const successCacheHeaders = {
   "Cache-Control": "public, max-age=60, s-maxage=900, stale-while-revalidate=86400",
   "CDN-Cache-Control": "public, s-maxage=900, stale-while-revalidate=86400",
   "Netlify-CDN-Cache-Control": "public, durable, s-maxage=1800, stale-while-revalidate=86400",
+};
+
+const partialCacheHeaders = {
+  "Cache-Control": "public, max-age=15, s-maxage=60, stale-while-revalidate=120",
+  "CDN-Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+  "Netlify-CDN-Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
 };
 
 const errorCacheHeaders = {
@@ -134,7 +145,7 @@ function rightsRegion(value: string | null): RightsRegion {
 
 function initialCursor(pageValue: string | null): CursorState {
   if (pageValue === null || pageValue === "") {
-    return { v: 1, g: 1, o: 0, gd: false, od: false, gt: null, ot: null, w: 0, d: 0, wd: false, dd: false, wt: null, dt: null };
+    return { v: 1, g: 1, o: 0, gd: false, od: false, gt: null, ot: null, w: 0, d: 0, wd: false, dd: false, wt: null, dt: null, l: 0, ld: false, lt: null };
   }
   if (!/^\d{1,5}$/.test(pageValue)) throw new SearchRequestError("Invalid page.");
   const page = Number(pageValue);
@@ -153,6 +164,9 @@ function initialCursor(pageValue: string | null): CursorState {
     dd: false,
     wt: null,
     dt: null,
+    l: (page - 1) * LIBRARY_OF_CONGRESS_PAGE_SIZE,
+    ld: false,
+    lt: null,
   };
 }
 
@@ -183,7 +197,12 @@ function decodeCursor(value: string): CursorState {
     const legacy = parsed as unknown as Partial<CursorState> & Pick<CursorState, "v" | "g" | "o" | "gd" | "od" | "gt" | "ot">;
     const w = legacy.w ?? 0;
     const d = legacy.d ?? 0;
-    if (!boundedInteger(w, 0, MAX_ADAPTER_OFFSET) || !boundedInteger(d, 0, MAX_ADAPTER_OFFSET)) {
+    const l = legacy.l ?? 0;
+    if (
+      !boundedInteger(w, 0, MAX_ADAPTER_OFFSET)
+      || !boundedInteger(d, 0, MAX_ADAPTER_OFFSET)
+      || !boundedInteger(l, 0, MAX_ADAPTER_OFFSET)
+    ) {
       throw new Error("Invalid adapter cursor state.");
     }
     return {
@@ -194,6 +213,9 @@ function decodeCursor(value: string): CursorState {
       dd: typeof legacy.dd === "boolean" ? legacy.dd : false,
       wt: nullableTotal(legacy.wt) ? legacy.wt : null,
       dt: nullableTotal(legacy.dt) ? legacy.dt : null,
+      l,
+      ld: typeof legacy.ld === "boolean" ? legacy.ld : false,
+      lt: nullableTotal(legacy.lt) ? legacy.lt : null,
     } as CursorState;
   } catch {
     throw new SearchRequestError("Invalid cursor.");
@@ -565,6 +587,7 @@ function advanceCursor(
   libraryResult: PromiseSettledResult<OpenLibraryPage> | undefined,
   wikisourceResult: PromiseSettledResult<SourcePage> | undefined,
   doabResult: PromiseSettledResult<SourcePage> | undefined,
+  libraryOfCongressResult: PromiseSettledResult<SourcePage> | undefined,
 ) {
   const next = { ...current };
 
@@ -587,6 +610,11 @@ function advanceCursor(
     next.dt = doabResult.value.total ?? next.dt;
     next.dd = !doabResult.value.hasMore || current.d >= MAX_ADAPTER_OFFSET;
     if (!next.dd) next.d = current.d + doabResult.value.advanceBy;
+  }
+  if (libraryOfCongressResult?.status === "fulfilled") {
+    next.lt = libraryOfCongressResult.value.total ?? next.lt;
+    next.ld = !libraryOfCongressResult.value.hasMore || current.l >= MAX_ADAPTER_OFFSET;
+    if (!next.ld) next.l = current.l + libraryOfCongressResult.value.advanceBy;
   }
 
   return next;
@@ -635,7 +663,10 @@ export async function GET(request: Request) {
     const doabPromise = cursor.dd
       ? undefined
       : doabAdapter.search({ query, by, offset: cursor.d, region }, fetchJson);
-    const pending = [gutenbergPromise, libraryPromise, wikisourcePromise, doabPromise]
+    const libraryOfCongressPromise = cursor.ld
+      ? undefined
+      : libraryOfCongressAdapter.search({ query, by, offset: cursor.l, region }, fetchJson);
+    const pending = [gutenbergPromise, libraryPromise, wikisourcePromise, doabPromise, libraryOfCongressPromise]
       .filter(Boolean) as Array<Promise<GutendexPage | OpenLibraryPage | SourcePage>>;
     const settled = await Promise.allSettled(pending);
     let settledIndex = 0;
@@ -649,6 +680,9 @@ export async function GET(request: Request) {
       ? settled[settledIndex++] as PromiseSettledResult<SourcePage>
       : undefined;
     const doabResult = doabPromise
+      ? settled[settledIndex++] as PromiseSettledResult<SourcePage>
+      : undefined;
+    const libraryOfCongressResult = libraryOfCongressPromise
       ? settled[settledIndex] as PromiseSettledResult<SourcePage>
       : undefined;
 
@@ -657,6 +691,7 @@ export async function GET(request: Request) {
       ["open-library", libraryResult],
       ["wikisource", wikisourceResult],
       ["doab", doabResult],
+      ["library-of-congress", libraryOfCongressResult],
     ] as const) {
       if (result?.status !== "rejected") continue;
       const reason = result.reason;
@@ -664,13 +699,20 @@ export async function GET(request: Request) {
       console.warn(`[search] ${source} upstream failure: ${failure}`);
     }
 
-    const attempted = [gutenbergResult, libraryResult, wikisourceResult, doabResult].filter(Boolean);
+    const attempted = [
+      gutenbergResult,
+      libraryResult,
+      wikisourceResult,
+      doabResult,
+      libraryOfCongressResult,
+    ].filter(Boolean);
     if (attempted.length && attempted.every((result) => result?.status === "rejected")) {
       const sources = {
         gutenberg: sourceStatus(cursor.gd, gutenbergResult),
         openLibrary: sourceStatus(cursor.od, libraryResult),
         wikisource: sourceStatus(cursor.wd, wikisourceResult),
         doab: sourceStatus(cursor.dd, doabResult),
+        libraryOfCongress: sourceStatus(cursor.ld, libraryOfCongressResult),
       };
       return Response.json(
         { error: "Catalogues are temporarily unavailable.", sources },
@@ -686,12 +728,31 @@ export async function GET(request: Request) {
     );
     const wikisourceBooks = wikisourceResult?.status === "fulfilled" ? wikisourceResult.value.books : [];
     const doabBooks = doabResult?.status === "fulfilled" ? doabResult.value.books : [];
+    const libraryOfCongressBooks = libraryOfCongressResult?.status === "fulfilled"
+      ? libraryOfCongressResult.value.books
+      : [];
     const books = applyRightsContext(
-      clusterBooks([...gutenbergBooks, ...libraryBooks, ...wikisourceBooks, ...doabBooks]),
+      clusterBooks([...gutenbergBooks, ...libraryBooks, ...wikisourceBooks, ...doabBooks, ...libraryOfCongressBooks]),
       region,
     );
-    const next = advanceCursor(cursor, gutenbergResult, libraryResult, wikisourceResult, doabResult);
-    const nextCursor = next.gd && next.od && next.wd && next.dd ? null : encodeCursor(next);
+    const next = advanceCursor(
+      cursor,
+      gutenbergResult,
+      libraryResult,
+      wikisourceResult,
+      doabResult,
+      libraryOfCongressResult,
+    );
+    const nextCursor = next.gd && next.od && next.wd && next.dd && next.ld ? null : encodeCursor(next);
+
+    const sources = {
+      gutenberg: sourceStatus(cursor.gd, gutenbergResult),
+      openLibrary: sourceStatus(cursor.od, libraryResult),
+      wikisource: sourceStatus(cursor.wd, wikisourceResult),
+      doab: sourceStatus(cursor.dd, doabResult),
+      libraryOfCongress: sourceStatus(cursor.ld, libraryOfCongressResult),
+    };
+    const partial = Object.values(sources).some((status) => status !== "ok" && status !== "exhausted");
 
     return Response.json({
       query,
@@ -710,15 +771,12 @@ export async function GET(request: Request) {
         openLibrary: next.ot,
         wikisource: next.wt,
         doab: next.dt,
+        libraryOfCongress: next.lt,
       },
-      sources: {
-        gutenberg: sourceStatus(cursor.gd, gutenbergResult),
-        openLibrary: sourceStatus(cursor.od, libraryResult),
-        wikisource: sourceStatus(cursor.wd, wikisourceResult),
-        doab: sourceStatus(cursor.dd, doabResult),
-      },
+      partial,
+      sources,
       rightsContext: rightsContext(region),
-    }, { headers: successCacheHeaders });
+    }, { headers: partial ? partialCacheHeaders : successCacheHeaders });
   } catch (error) {
     const isRequestError = error instanceof SearchRequestError;
     return Response.json(

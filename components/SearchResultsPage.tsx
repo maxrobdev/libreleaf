@@ -311,6 +311,7 @@ export default function SearchResultsPage() {
         sourceIssue("Open Library", data.sources.openLibrary),
         sourceIssue("Wikisource", data.sources.wikisource),
         sourceIssue("DOAB", data.sources.doab),
+        sourceIssue("Library of Congress", data.sources.libraryOfCongress),
       ].filter(Boolean)
     : [];
 
@@ -321,7 +322,7 @@ export default function SearchResultsPage() {
       <header className={styles.searchHeader}>
         <div className={styles.headingRow}>
           <h1>Search books</h1>
-          <p>One work view across source-labelled downloads, loans and open-access editions.</p>
+          <p>One work view across source-labelled download, read, loan and preview routes.</p>
         </div>
         <form className={`search-box ${styles.form}`} onSubmit={search} role="search">
           <span aria-hidden="true">⌕</span>
@@ -366,7 +367,7 @@ export default function SearchResultsPage() {
         </div>
 
         <div className="result-tools">
-          <label>Source<select value={source} onChange={(event) => { setSource(event.target.value as typeof source); setVisibleCount(RESULTS_BATCH_SIZE); }}><option value="all">All catalogues</option><option value="Project Gutenberg">Project Gutenberg</option><option value="Open Library">Open Library</option><option value="Wikisource">Wikisource</option><option value="DOAB">DOAB</option></select></label>
+          <label>Source<select value={source} onChange={(event) => { setSource(event.target.value as typeof source); setVisibleCount(RESULTS_BATCH_SIZE); }}><option value="all">All catalogues</option><option value="Project Gutenberg">Project Gutenberg</option><option value="Open Library">Open Library</option><option value="Wikisource">Wikisource</option><option value="DOAB">DOAB</option><option value="Library of Congress">Library of Congress</option></select></label>
           <label>Format<select value={format} onChange={(event) => { setFormat(event.target.value); setVisibleCount(RESULTS_BATCH_SIZE); }}><option value="all">Every format</option>{availableFormats.map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
           <label>Sort<select value={sort} onChange={(event) => { setSort(event.target.value as Sort); setVisibleCount(RESULTS_BATCH_SIZE); }}><option value="relevance">Best match</option><option value="title">Title A–Z</option><option value="oldest">Oldest first</option><option value="newest">Newest first</option></select></label>
           {hasFilters ? <button onClick={() => { setFilter("all"); setSource("all"); setFormat("all"); setSort("relevance"); setVisibleCount(RESULTS_BATCH_SIZE); writeLocation(location.query, location.by, location.region); }}>Reset filters</button> : null}

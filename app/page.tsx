@@ -34,7 +34,7 @@ export default function Home() {
           <input id="book-search" name="q" placeholder="Title, author, or subject…" autoComplete="off" required />
           <button type="submit">Search</button>
         </form>
-        <p className="hero-copy">Lawful routes from four open catalogues, with source and rights context.</p>
+        <p className="hero-copy">Source-labelled routes from five open catalogues, with rights context.</p>
         <div className="suggestions"><span>Try</span>{suggestions.map((item) => <a key={item} href={searchUrl(item)}>{item}</a>)}</div>
         <div className="category-row" aria-label="Browse popular genres and subgenres">{subjects.map((item) => <a key={item} href={searchUrl(item, "subject")}>{item}</a>)}</div>
       </section>
@@ -51,7 +51,7 @@ export default function Home() {
         </nav>
       </section>
 
-      <footer><a className="brand" href="#top"><span>libre</span>leaf</a><p>Open-source book search.</p><p>Data from Project Gutenberg, Open Library, Wikisource and DOAB.</p></footer>
+      <footer><a className="brand" href="#top"><span>libre</span>leaf</a><p>Open-source book search.</p><p>Data from Project Gutenberg, Open Library, Wikisource, DOAB and the Library of Congress.</p></footer>
     </main>
   );
 }

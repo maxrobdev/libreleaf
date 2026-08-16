@@ -144,7 +144,10 @@ export const doabAdapter: SourceAdapter = {
     url.searchParams.set("expand", "metadata,bitstreams");
     url.searchParams.set("limit", String(PAGE_SIZE));
     url.searchParams.set("offset", String(input.offset));
-    const payload = await fetchJson(url.toString(), USER_AGENT, 4_500);
+    // DOAB currently has intermittent zero-byte connection stalls from the
+    // production edge. Keep it independent and retryable without holding the
+    // whole resolver response beyond the fast-source budget.
+    const payload = await fetchJson(url.toString(), USER_AGENT, 2_500);
     if (!Array.isArray(payload) || payload.some((item) => !isRecord(item))) {
       throw new Error("DOAB returned an invalid response.");
     }

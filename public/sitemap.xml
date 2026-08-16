@@ -7,27 +7,39 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://libreleaf-books.netlify.app/search</loc>
+    <loc>https://libreleaf-books.netlify.app/search/</loc>
     <lastmod>2026-08-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://libreleaf-books.netlify.app/lists</loc>
+    <loc>https://libreleaf-books.netlify.app/lists/</loc>
     <lastmod>2026-08-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://libreleaf-books.netlify.app/about</loc>
+    <loc>https://libreleaf-books.netlify.app/about/</loc>
     <lastmod>2026-08-16</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://libreleaf-books.netlify.app/resources</loc>
+    <loc>https://libreleaf-books.netlify.app/resources/</loc>
     <lastmod>2026-08-16</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://libreleaf-books.netlify.app/privacy</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  <url>
+    <loc>https://libreleaf-books.netlify.app/terms</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
   </url>
 </urlset>
