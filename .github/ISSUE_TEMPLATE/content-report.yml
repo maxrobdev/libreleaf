@@ -1,0 +1,47 @@
+name: Content or rights report
+description: Report a result that may be incorrectly labelled or linked.
+title: "[Content]: "
+labels: ["content"]
+body:
+  - type: markdown
+    attributes:
+      value: LibreLeaf links to third-party catalogues. Please report the source item there as well when appropriate, and do not attach or redistribute the book file.
+  - type: input
+    id: title
+    attributes:
+      label: Book title
+    validations:
+      required: true
+  - type: input
+    id: result
+    attributes:
+      label: LibreLeaf or source URL
+      description: Link to the relevant result or its Project Gutenberg/Open Library record.
+    validations:
+      required: true
+  - type: dropdown
+    id: concern
+    attributes:
+      label: Type of concern
+      options:
+        - Incorrect download, borrow, or preview label
+        - Unexpected or misleading destination
+        - Rights or availability concern
+        - Incorrect metadata
+        - Other content issue
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Explain the concern and include supporting public links where possible.
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I have not attached or copied the book file into this report.
+          required: true

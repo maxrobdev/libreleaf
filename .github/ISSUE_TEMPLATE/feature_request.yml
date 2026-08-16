@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest a focused improvement to LibreLeaf.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What reader need would this address?
+      description: Describe the problem before proposing the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement
+      description: Explain how you think LibreLeaf could address it.
+    validations:
+      required: true
+  - type: textarea
+    id: considerations
+    attributes:
+      label: Accessibility, privacy, and rights considerations
+      description: Note any effect on reader privacy, accessible use, source attribution, or lawful access.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: This request does not add a piracy-focused or unauthorised source.
+          required: true
+        - label: I searched the existing issues for a similar request.
+          required: true

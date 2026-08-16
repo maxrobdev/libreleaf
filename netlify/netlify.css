@@ -1,0 +1,27 @@
+:root {
+  --font-display: "Cormorant Garamond";
+  --font-sans: "DM Sans";
+}
+
+.netlify-page-hero {
+  padding: 76px clamp(24px, 5vw, 76px) 52px;
+  border-bottom: 1px solid var(--line);
+}
+
+.netlify-page-hero > p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+
+.netlify-page-hero h1 {
+  margin: 0 0 20px;
+  font-family: var(--font-display), serif;
+  font-size: clamp(50px, 7vw, 84px);
+  line-height: .9;
+  letter-spacing: -.04em;
+}
+
+.netlify-page-hero > span { color: var(--muted); font-size: 14px; }

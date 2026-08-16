@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report
+    url: https://github.com/maxrobdev/libreleaf/security/advisories/new
+    about: Please report vulnerabilities privately rather than opening a public issue.
+  - name: Project Gutenberg help
+    url: https://www.gutenberg.org/help/
+    about: Ask about a Project Gutenberg record or file at its source.
+  - name: Open Library help
+    url: https://openlibrary.org/help
+    about: Ask about an Open Library loan, preview, account, or catalogue record.
