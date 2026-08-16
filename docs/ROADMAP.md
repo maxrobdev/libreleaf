@@ -13,7 +13,7 @@
 
 - Work-level availability graphs that distinguish the abstract work, editions and access offers
 - Source health scoring and stale catalogue snapshots for degraded upstreams
-- Transparent reciprocal-rank fusion once enough independent source ranks are available
+- Evaluate Reciprocal Rank Fusion against a maintained relevance judgement set and publish the measurements
 - Jurisdiction data that cites authoritative rules without presenting automated legal conclusions
 
 ## Ongoing

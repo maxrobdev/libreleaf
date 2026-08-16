@@ -13,10 +13,11 @@ structured content and the same JSON-encoded text content. Its record includes
 authors, provenance, source-labelled routes, rights context and partial-source
 status; it does not return or reproduce a book's copyrighted text.
 
-Stable IDs are derived from normalized work title and primary author. For a
+Stable IDs are produced by the shared web/API identity module from normalized work title and primary author. For a
 record without usable author metadata, the ID also retains its source and
 source record ID. This makes IDs independent of whichever catalogue answered
-first while avoiding title-only merges.
+first while avoiding title-only merges. Citation URLs select and open that exact
+work in the browser resolver.
 
 `search_books(query, search_by?, limit?, region?)` searches Project Gutenberg,
 Open Library, Wikisource, DOAB and the Library of Congress. `search_by` accepts `q`, `title`, `author`, or

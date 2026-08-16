@@ -2,12 +2,17 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import { GET as searchRoute } from "../app/api/search/route";
+import {
+  canonicalWorkUrl,
+  decodeStableWorkId,
+  MAX_WORK_ID_LENGTH,
+  stableWorkId,
+  WORK_ID_PREFIX,
+  workIdentityMatches,
+} from "../lib/work-identity.ts";
 
 const MAX_TOOL_RESULTS = 20;
 const DEFAULT_TOOL_RESULTS = 10;
-const PUBLIC_SITE_ORIGIN = "https://libreleaf-books.netlify.app";
-const WORK_ID_PREFIX = "llw1.";
-const MAX_WORK_ID_LENGTH = 1_024;
 
 const searchBySchema = z.enum(["q", "title", "author", "subject"]);
 const rightsRegionSchema = z.enum(["GB", "US", "GLOBAL"]);
@@ -47,6 +52,13 @@ const sourceRecordSchema = z.object({
   offers: z.array(offerSchema),
 });
 
+const rankingSchema = z.object({
+  method: z.literal("rrf-v1"),
+  score: z.number().nonnegative(),
+  sourceRanks: z.array(z.object({ source: catalogueSourceSchema, rank: z.number().int().positive() })),
+  reasons: z.array(z.string()),
+});
+
 const bookSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -64,6 +76,9 @@ const bookSchema = z.object({
   why: z.array(z.string()).optional(),
   offers: z.array(offerSchema).optional(),
   sourceRecords: z.array(sourceRecordSchema).optional(),
+  canonicalId: z.string().optional(),
+  canonicalUrl: z.string().url().optional(),
+  ranking: rankingSchema.optional(),
 });
 
 const sourceStatusSchema = z.object({
@@ -83,6 +98,11 @@ const searchResultSchema = z.object({
   partial: z.boolean(),
   sources: sourceStatusSchema,
   books: z.array(bookSchema),
+  ranking: z.object({
+    method: z.literal("rrf-v1"),
+    k: z.number().int().positive(),
+    note: z.string(),
+  }).optional(),
 });
 
 const resolveAccessResultSchema = z.object({
@@ -127,18 +147,9 @@ const compatibilityFetchResultSchema = z.object({
   }),
 });
 
-const workIdentitySchema = z.object({
-  v: z.literal(1),
-  t: z.string().min(1).max(300),
-  a: z.string().min(1).max(240).optional(),
-  s: catalogueSourceSchema.optional(),
-  r: z.string().min(1).max(300).optional(),
-}).refine((identity) => Boolean(identity.a || (identity.s && identity.r)));
-
 type SearchBy = z.infer<typeof searchBySchema>;
 type SearchResult = z.infer<typeof searchResultSchema>;
 type ResolveAccessResult = z.infer<typeof resolveAccessResultSchema>;
-type WorkIdentity = z.infer<typeof workIdentitySchema>;
 type SearchRouteHandler = (request: Request) => Promise<Response>;
 
 export type SearchDependencies = {
@@ -243,9 +254,12 @@ function publicBook(value: unknown): z.infer<typeof bookSchema> | undefined {
           }];
         })
       : [],
+    ranking: rankingSchema.safeParse(value.ranking).success ? rankingSchema.parse(value.ranking) : undefined,
   });
 
-  return parsed.success ? parsed.data : undefined;
+  if (!parsed.success) return undefined;
+  const canonicalId = stableWorkId(parsed.data);
+  return { ...parsed.data, canonicalId, canonicalUrl: canonicalWorkUrl(parsed.data, canonicalId) };
 }
 
 function interleaveSources(books: z.infer<typeof bookSchema>[]) {
@@ -298,7 +312,10 @@ export async function searchBooks(
     ? sourceParse.data
     : { gutenberg: "unavailable" as const, openLibrary: "unavailable" as const, wikisource: "unavailable" as const, doab: "unavailable" as const, libraryOfCongress: "unavailable" as const };
   const contextParse = searchResultSchema.shape.rightsContext.safeParse(payload.rightsContext);
-  const rankedBooks = interleaveSources(books);
+  const rankedBooks = books.some((book) => book.ranking)
+    ? [...books].sort((left, right) => (right.ranking?.score ?? 0) - (left.ranking?.score ?? 0))
+    : interleaveSources(books);
+  const rankingParse = searchResultSchema.shape.ranking.safeParse(payload.ranking);
   const result = {
     query: input.query,
     searchBy: input.searchBy,
@@ -309,86 +326,18 @@ export async function searchBooks(
       .some((status) => status !== "ok" && status !== "exhausted"),
     sources,
     books: rankedBooks.slice(0, input.limit),
+    ranking: rankingParse.success ? rankingParse.data : undefined,
   };
 
   return searchResultSchema.parse(result);
 }
 
 function normaliseMatchText(value: string) {
-  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function normaliseMatchAuthor(value: string) {
   return normaliseMatchText(value).split(" ").filter(Boolean).sort().join(" ");
-}
-
-function normaliseIdentityText(value: string) {
-  return value
-    .normalize("NFKC")
-    .toLocaleLowerCase("en-GB")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-}
-
-function normaliseIdentityAuthor(value: string) {
-  return normaliseIdentityText(value).split(" ").filter(Boolean).sort().join(" ");
-}
-
-function base64UrlEncode(value: string) {
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-
-function base64UrlDecode(value: string) {
-  const padding = "=".repeat((4 - value.length % 4) % 4);
-  const binary = atob(value.replace(/-/g, "+").replace(/_/g, "/") + padding);
-  return new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0)));
-}
-
-function workIdentity(book: z.infer<typeof bookSchema>): WorkIdentity {
-  const title = normaliseIdentityText(book.title) || book.title.trim().slice(0, 300);
-  const author = normaliseIdentityAuthor(book.authors[0] ?? "");
-  if (author) return { v: 1, t: title, a: author };
-
-  const record = book.sourceRecords?.[0];
-  if (record) return { v: 1, t: title, s: record.source, r: record.recordId };
-  const fallbackSource = catalogueSourceSchema.options.find((source) => book.source.includes(source)) ?? "Open Library";
-  return { v: 1, t: title, s: fallbackSource, r: book.id };
-}
-
-function stableWorkId(book: z.infer<typeof bookSchema>) {
-  return `${WORK_ID_PREFIX}${base64UrlEncode(JSON.stringify(workIdentity(book)))}`;
-}
-
-function decodeWorkId(value: string): WorkIdentity {
-  if (!value.startsWith(WORK_ID_PREFIX) || value.length > MAX_WORK_ID_LENGTH || !/^[A-Za-z0-9._-]+$/.test(value)) {
-    throw new Error("Invalid LibreLeaf work ID.");
-  }
-  try {
-    const decoded: unknown = JSON.parse(base64UrlDecode(value.slice(WORK_ID_PREFIX.length)));
-    return workIdentitySchema.parse(decoded);
-  } catch {
-    throw new Error("Invalid LibreLeaf work ID.");
-  }
-}
-
-function canonicalWorkUrl(book: z.infer<typeof bookSchema>, id = stableWorkId(book)) {
-  const url = new URL("/search/", PUBLIC_SITE_ORIGIN);
-  url.searchParams.set("q", book.title);
-  url.searchParams.set("by", "title");
-  url.searchParams.set("work", id);
-  return url.toString();
-}
-
-function identityMatches(book: z.infer<typeof bookSchema>, expected: WorkIdentity) {
-  const actual = workIdentity(book);
-  return actual.v === expected.v
-    && actual.t === expected.t
-    && actual.a === expected.a
-    && actual.s === expected.s
-    && actual.r === expected.r;
 }
 
 function tokenSimilarity(left: string, right: string) {
@@ -527,12 +476,12 @@ export async function compatibilityFetch(
   id: string,
   dependencies: SearchDependencies = {},
 ) {
-  const identity = decodeWorkId(id);
+  const identity = decodeStableWorkId(id);
   const search = await searchBooks(
     { query: identity.t, searchBy: "title", limit: MAX_TOOL_RESULTS, region: "GB" },
     dependencies,
   );
-  const book = search.books.find((candidate) => identityMatches(candidate, identity));
+  const book = search.books.find((candidate) => workIdentityMatches(candidate, identity));
   if (!book) throw new Error("This LibreLeaf work could not be refreshed from the public catalogues.");
 
   const sources = [...new Set((book.sourceRecords ?? []).map((record) => record.source))];

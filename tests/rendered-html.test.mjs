@@ -44,10 +44,14 @@ test("keeps home search empty and routes results to a dedicated page", async () 
   assert.match(card, /Source records/);
   assert.match(card, /Library of Congress/);
   assert.match(card, /Load editions/);
+  assert.match(card, /Permanent work link/);
   assert.match(card, /Show all \$\{routes\.length\} routes/);
   assert.match(card, /US law/);
   assert.match(results, /RESULTS_BATCH_SIZE = 24/);
   assert.match(results, /cursor: data\.nextCursor/);
+  assert.match(results, /workId/);
+  assert.match(results, /focused=\{Boolean\(location\.workId/);
+  assert.match(results, /RRF_K = 60/);
   assert.match(results, /Load more/);
   assert.match(results, /Library of Congress/);
   assert.doesNotMatch(`${page}\n${card}\n${results}`, /Anna.?s Archive|LibGen|torrent/i);

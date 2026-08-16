@@ -43,6 +43,18 @@ export type SourceRecord = {
   offers: Offer[];
 };
 
+export type SourceRank = {
+  source: CatalogueSource;
+  rank: number;
+};
+
+export type WorkRanking = {
+  method: "rrf-v1";
+  score: number;
+  sourceRanks: SourceRank[];
+  reasons: string[];
+};
+
 export type NormalisedBook = {
   id: string;
   title: string;
@@ -60,6 +72,10 @@ export type NormalisedBook = {
   why: string[];
   offers: Offer[];
   sourceRecords: SourceRecord[];
+  sourceRanks?: SourceRank[];
+  ranking?: WorkRanking;
+  canonicalId?: string;
+  canonicalUrl?: string;
 };
 
 export type SourcePage = {

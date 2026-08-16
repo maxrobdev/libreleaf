@@ -47,6 +47,11 @@
   gap: 34px 19px;
 }
 
+.focusedWork {
+  outline: 2px solid var(--forest);
+  outline-offset: 7px;
+}
+
 .meta {
   display: flex;
   align-items: baseline;

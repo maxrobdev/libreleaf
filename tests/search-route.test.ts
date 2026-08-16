@@ -81,6 +81,9 @@ test("returns work provenance, exact clusters, totals and a progressive cursor",
   assert.equal(body.partial, false);
   assert.match(response.headers.get("cache-control") ?? "", /s-maxage=900/);
   assert.equal(body.books.length, 3);
+  assert.equal(body.ranking.method, "rrf-v1");
+  assert.equal(body.ranking.k, 60);
+  assert.equal(body.books[0].title, "Pride and Prejudice");
   assert.equal(body.upstreamTotals.gutenberg, 80);
   assert.equal(body.upstreamTotals.openLibrary, 75);
   assert.equal(typeof body.nextCursor, "string");
@@ -94,7 +97,52 @@ test("returns work provenance, exact clusters, totals and a progressive cursor",
   assert.equal(merged.offers[0].rights.jurisdiction, "US");
   assert.match(merged.offers[0].rights.note, /United States/);
   assert.match(merged.why.at(-1), /Exact normalized title/);
+  assert.match(merged.canonicalId, /^llw1\./);
+  assert.match(merged.canonicalUrl, /\/search\/\?.*work=llw1/);
+  assert.equal(merged.ranking.method, "rrf-v1");
+  assert.deepEqual(merged.ranking.sourceRanks, [
+    { source: "Open Library", rank: 1 },
+    { source: "Project Gutenberg", rank: 1 },
+  ]);
+  assert.match(merged.ranking.reasons.join(" "), /Confirmed by 2 independent catalogues/);
+  assert.ok(merged.ranking.score > body.books.find((book: { title: string }) => book.title === "Persuasion").ranking.score);
   assert.equal(body.books.find((book: { title: string }) => book.title === "Emma").clusterConfidence, "probable");
+});
+
+test("uses reciprocal rank fusion to favour cross-catalogue consensus", async () => {
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "gutendex.com") {
+      return Response.json({
+        count: 2,
+        next: null,
+        results: [
+          gutenbergBook(10, "Single-source result", "Writer, One"),
+          gutenbergBook(11, "Consensus work", "Writer, Two"),
+        ],
+      });
+    }
+    if (url.hostname === "openlibrary.org") {
+      return Response.json({
+        numFound: 1,
+        docs: [openLibraryBook("/works/OL11W", "Consensus work", "Writer Two")],
+      });
+    }
+    if (url.hostname === "en.wikisource.org") return Response.json(emptyWikisource());
+    if (url.hostname === "directory.doabooks.org") return Response.json([]);
+    if (url.hostname === "www.loc.gov") return Response.json(emptyLibraryOfCongress());
+    throw new Error(`Unexpected source ${url.hostname}`);
+  };
+
+  const response = await GET(new Request("https://libreleaf.test/api/search?q=reading"));
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.books[0].title, "Consensus work");
+  assert.deepEqual(body.books[0].ranking.sourceRanks, [
+    { source: "Open Library", rank: 1 },
+    { source: "Project Gutenberg", rank: 2 },
+  ]);
+  assert.ok(body.books[0].ranking.score > body.books[1].ranking.score);
 });
 
 test("uses cursor offsets and ends pagination when both sources are exhausted", async () => {

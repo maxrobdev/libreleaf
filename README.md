@@ -15,10 +15,11 @@ I built LibreLeaf because public-domain knowledge should be easy for people to f
 
 - Searches by title, author, subject, or across every field
 - Clusters exact title-and-author matches into a canonical work while retaining each source record
+- Gives each canonical work a stable LibreLeaf ID and permalink shared by the web UI and MCP
 - Pages every upstream independently instead of applying a permanent result cap
 - Offers direct EPUB, PDF, MOBI, HTML, and plain-text links only when a source explicitly supplies them
 - Labels every item as download, read, library loan, or preview
-- Explains why each result ranked and whether its work merge is exact or probable
+- Fuses independent catalogue positions with transparent Reciprocal Rank Fusion and explains every contributing rank
 - Switches between UK, US and global source-rights context without pretending to make a legal determination
 - Loads Open Library editions on demand, including language, date, ISBN and record provenance
 - Filters by access type, catalogue, and format
@@ -52,7 +53,7 @@ Canonical work clusters with retained source records
 Rank reasons, rights context and labelled access routes
 ```
 
-The browser calls LibreLeaf's server-side resolver. Sources run independently with bounded timeouts, cursors and cache headers. Exact normalized title-and-primary-author matches are clustered; fuzzy matches remain separate. A failed source keeps its cursor position so a later request can retry it.
+The browser calls LibreLeaf's server-side resolver. Sources run independently with bounded timeouts, cursors and cache headers. Exact normalized title-and-primary-author matches are clustered; fuzzy matches remain separate. Source positions are combined with [Reciprocal Rank Fusion](https://research.google/pubs/reciprocal-rank-fusion-outperforms-condorcet-and-individual-rank-learning-methods/) (`k=60`), with a small disclosed exact-title or exact-author signal. A failed source keeps its cursor position so a later request can retry it.
 
 Direct file links are exposed only when the named source supplies an allowlisted URL. Open Library records lead to its catalogue, borrowing or preview interface. Library of Congress routes remain `check-local` even when its record supplies a PDF. See the [source and rights policy](docs/SOURCE_POLICY.md).
 

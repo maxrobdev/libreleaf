@@ -2,6 +2,7 @@ import { doabAdapter } from "../../../lib/sources/doab.ts";
 import { libraryOfCongressAdapter } from "../../../lib/sources/library-of-congress.ts";
 import type {
   Access,
+  CatalogueSource,
   NormalisedBook,
   Offer,
   Rights,
@@ -11,6 +12,7 @@ import type {
   SourceRecord,
 } from "../../../lib/sources/types.ts";
 import { wikisourceAdapter } from "../../../lib/sources/wikisource.ts";
+import { canonicalWorkUrl, stableWorkId } from "../../../lib/work-identity.ts";
 
 type GutendexBook = {
   id: number;
@@ -75,6 +77,7 @@ const OPEN_LIBRARY_TIMEOUT_MS = 2_000;
 const OPEN_LIBRARY_RETRY_TIMEOUT_MS = 1_000;
 const OPEN_LIBRARY_RETRY_PAGE_SIZE = 16;
 const OPEN_LIBRARY_FIELDS = "key,title,author_name,first_publish_year,cover_i,ebook_access";
+const RRF_K = 60;
 
 const successCacheHeaders = {
   "Cache-Control": "public, max-age=60, s-maxage=900, stale-while-revalidate=86400",
@@ -368,6 +371,7 @@ function normaliseText(value: string) {
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase()
+    .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
@@ -380,6 +384,78 @@ function clusterKey(book: NormalisedBook): string | undefined {
   const title = normaliseText(book.title);
   const author = normaliseAuthor(book.authors[0] ?? "");
   return title && author ? `${title}|${author}` : undefined;
+}
+
+function annotateSourceRanks(
+  books: NormalisedBook[],
+  source: CatalogueSource,
+  firstRank: number,
+) {
+  return books.map((book, index) => ({
+    ...book,
+    sourceRanks: [{ source, rank: firstRank + index }],
+  }));
+}
+
+function mergedSourceRanks(primary: NormalisedBook, secondary: NormalisedBook) {
+  const bestBySource = new Map<CatalogueSource, number>();
+  for (const item of [...(primary.sourceRanks ?? []), ...(secondary.sourceRanks ?? [])]) {
+    const current = bestBySource.get(item.source);
+    if (current === undefined || item.rank < current) bestBySource.set(item.source, item.rank);
+  }
+  return [...bestBySource]
+    .map(([source, rank]) => ({ source, rank }))
+    .sort((left, right) => left.rank - right.rank || left.source.localeCompare(right.source));
+}
+
+function matchSignal(book: NormalisedBook, query: string, by: SearchMode) {
+  const wanted = normaliseText(query);
+  if (!wanted) return { boost: 0, reason: "" };
+
+  if (by === "author") {
+    const wantedAuthor = normaliseAuthor(query);
+    if (book.authors.some((author) => normaliseAuthor(author) === wantedAuthor)) {
+      return { boost: 0.02, reason: "Exact normalized author match." };
+    }
+    return { boost: 0, reason: "" };
+  }
+
+  if ((by === "title" || by === "q") && normaliseText(book.title) === wanted) {
+    return { boost: 0.02, reason: "Exact normalized title match." };
+  }
+  return { boost: 0, reason: "" };
+}
+
+function rankBooks(books: NormalisedBook[], query: string, by: SearchMode) {
+  return books
+    .map((book) => {
+      const sourceRanks = [...(book.sourceRanks ?? [])]
+        .sort((left, right) => left.rank - right.rank || left.source.localeCompare(right.source));
+      const reciprocalScore = sourceRanks.reduce((score, item) => score + 1 / (RRF_K + item.rank), 0);
+      const signal = matchSignal(book, query, by);
+      const score = Math.round((reciprocalScore + signal.boost) * 1_000_000) / 1_000_000;
+      const reasons = sourceRanks.map((item) => `Ranked #${item.rank} by ${item.source}.`);
+      if (sourceRanks.length > 1) reasons.push(`Confirmed by ${sourceRanks.length} independent catalogues.`);
+      if (signal.reason) reasons.push(signal.reason);
+      return {
+        ...book,
+        ranking: { method: "rrf-v1" as const, score, sourceRanks, reasons },
+      };
+    })
+    .sort((left, right) => {
+      const scoreDifference = (right.ranking?.score ?? 0) - (left.ranking?.score ?? 0);
+      if (scoreDifference) return scoreDifference;
+      const leftRank = left.ranking?.sourceRanks[0]?.rank ?? Number.MAX_SAFE_INTEGER;
+      const rightRank = right.ranking?.sourceRanks[0]?.rank ?? Number.MAX_SAFE_INTEGER;
+      return leftRank - rightRank || left.title.localeCompare(right.title);
+    });
+}
+
+function addCanonicalIdentity(books: NormalisedBook[]) {
+  return books.map((book) => {
+    const canonicalId = stableWorkId(book);
+    return { ...book, canonicalId, canonicalUrl: canonicalWorkUrl(book, canonicalId) };
+  });
 }
 
 function offersForGutenberg(formats: { label: string; url: string }[]): Offer[] {
@@ -521,6 +597,7 @@ function mergeBooks(primary: NormalisedBook, secondary: NormalisedBook): Normali
     ], (reason) => reason),
     offers,
     sourceRecords,
+    sourceRanks: mergedSourceRanks(primary, secondary),
   };
 }
 
@@ -720,21 +797,32 @@ export async function GET(request: Request) {
       );
     }
 
-    const gutenbergBooks = normaliseGutenbergBooks(
+    const gutenbergBooks = annotateSourceRanks(normaliseGutenbergBooks(
       gutenbergResult?.status === "fulfilled" ? gutenbergResult.value.books : [],
-    );
-    const libraryBooks = normaliseOpenLibraryBooks(
+    ), "Project Gutenberg", (cursor.g - 1) * GUTENDEX_PAGE_SIZE + 1);
+    const libraryBooks = annotateSourceRanks(normaliseOpenLibraryBooks(
       libraryResult?.status === "fulfilled" ? libraryResult.value.books : [],
+    ), "Open Library", cursor.o + 1);
+    const wikisourceBooks = annotateSourceRanks(
+      wikisourceResult?.status === "fulfilled" ? wikisourceResult.value.books : [],
+      "Wikisource",
+      cursor.w + 1,
     );
-    const wikisourceBooks = wikisourceResult?.status === "fulfilled" ? wikisourceResult.value.books : [];
-    const doabBooks = doabResult?.status === "fulfilled" ? doabResult.value.books : [];
-    const libraryOfCongressBooks = libraryOfCongressResult?.status === "fulfilled"
-      ? libraryOfCongressResult.value.books
-      : [];
-    const books = applyRightsContext(
+    const doabBooks = annotateSourceRanks(
+      doabResult?.status === "fulfilled" ? doabResult.value.books : [],
+      "DOAB",
+      cursor.d + 1,
+    );
+    const libraryOfCongressBooks = annotateSourceRanks(
+      libraryOfCongressResult?.status === "fulfilled" ? libraryOfCongressResult.value.books : [],
+      "Library of Congress",
+      cursor.l + 1,
+    );
+    const books = addCanonicalIdentity(applyRightsContext(rankBooks(
       clusterBooks([...gutenbergBooks, ...libraryBooks, ...wikisourceBooks, ...doabBooks, ...libraryOfCongressBooks]),
-      region,
-    );
+      query,
+      by,
+    ), region));
     const next = advanceCursor(
       cursor,
       gutenbergResult,
@@ -775,6 +863,11 @@ export async function GET(request: Request) {
       },
       partial,
       sources,
+      ranking: {
+        method: "rrf-v1",
+        k: RRF_K,
+        note: "Reciprocal Rank Fusion combines each catalogue's result position; exact requested title or author metadata receives a small, disclosed boost.",
+      },
       rightsContext: rightsContext(region),
     }, { headers: partial ? partialCacheHeaders : successCacheHeaders });
   } catch (error) {

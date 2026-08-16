@@ -15,21 +15,58 @@ type LocationState = {
   by: SearchBy;
   savedOnly: boolean;
   region: RightsRegion;
+  workId: string;
 };
 
 const responseCache = new Map<string, SearchPayload>();
 const validSearchFields = new Set<SearchBy>(["all", "title", "author", "subject"]);
 const validRegions = new Set<RightsRegion>(["GB", "US", "GLOBAL"]);
 const RESULTS_BATCH_SIZE = 24;
+const RRF_K = 60;
 
 function normalise(value: string) {
-  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function bookKey(book: Book) {
+  if (book.canonicalId) return book.canonicalId;
   const title = normalise(book.title);
   const author = normalise(book.authors[0] ?? "").split(" ").filter(Boolean).sort().join(" ");
   return title && author ? `${title}|${author}` : book.workKey ?? book.id;
+}
+
+function savedKey(book: Book) {
+  return book.canonicalId ?? book.id;
+}
+
+function rankingBase(book: Book) {
+  return (book.ranking?.sourceRanks ?? []).reduce((score, item) => score + 1 / (RRF_K + item.rank), 0);
+}
+
+function mergeRanking(existing: Book, incoming: Book): Book["ranking"] {
+  if (!existing.ranking) return incoming.ranking;
+  if (!incoming.ranking) return existing.ranking;
+  const bestBySource = new Map<CatalogueSource, number>();
+  for (const item of [...existing.ranking.sourceRanks, ...incoming.ranking.sourceRanks]) {
+    const current = bestBySource.get(item.source);
+    if (current === undefined || item.rank < current) bestBySource.set(item.source, item.rank);
+  }
+  const sourceRanks = [...bestBySource]
+    .map(([source, rank]) => ({ source, rank }))
+    .sort((left, right) => left.rank - right.rank || left.source.localeCompare(right.source));
+  const boost = Math.max(
+    0,
+    existing.ranking.score - rankingBase(existing),
+    incoming.ranking.score - rankingBase(incoming),
+  );
+  const score = Math.round((sourceRanks.reduce((total, item) => total + 1 / (RRF_K + item.rank), 0) + boost) * 1_000_000) / 1_000_000;
+  const reasons = [
+    ...sourceRanks.map((item) => `Ranked #${item.rank} by ${item.source}.`),
+    ...(sourceRanks.length > 1 ? [`Confirmed by ${sourceRanks.length} independent catalogues.`] : []),
+    ...existing.ranking.reasons.filter((reason) => !reason.startsWith("Ranked #") && !reason.startsWith("Confirmed by ")),
+    ...incoming.ranking.reasons.filter((reason) => !reason.startsWith("Ranked #") && !reason.startsWith("Confirmed by ")),
+  ].filter((reason, index, all) => all.indexOf(reason) === index);
+  return { method: "rrf-v1", score, sourceRanks, reasons };
 }
 
 function mergeBooks(current: Book[], incoming: Book[]) {
@@ -69,6 +106,9 @@ function mergeBooks(current: Book[], incoming: Book[]) {
       access,
       why,
       clusterConfidence: existing.clusterConfidence === "exact" || book.clusterConfidence === "exact" ? "exact" : book.clusterConfidence ?? existing.clusterConfidence,
+      canonicalId: existing.canonicalId ?? book.canonicalId,
+      canonicalUrl: existing.canonicalUrl ?? book.canonicalUrl,
+      ranking: mergeRanking(existing, book),
     });
   }
 
@@ -113,25 +153,28 @@ function sourceIssue(source: string, status: string | undefined) {
 }
 
 function readLocation(): LocationState {
-  if (typeof window === "undefined") return { query: "", by: "all", savedOnly: false, region: "GB" };
+  if (typeof window === "undefined") return { query: "", by: "all", savedOnly: false, region: "GB", workId: "" };
   const params = new URLSearchParams(window.location.search);
   const rawBy = params.get("by") as SearchBy | null;
   const rawRegion = params.get("region") as RightsRegion | null;
+  const rawWorkId = params.get("work") ?? "";
 
   return {
     query: params.get("q")?.trim() ?? "",
     by: rawBy && validSearchFields.has(rawBy) ? rawBy : "all",
     savedOnly: params.get("view") === "saved",
     region: rawRegion && validRegions.has(rawRegion) ? rawRegion : "GB",
+    workId: /^llw1\.[A-Za-z0-9_-]+$/.test(rawWorkId) && rawWorkId.length <= 1_024 ? rawWorkId : "",
   };
 }
 
-function writeLocation(query: string, by: SearchBy, region: RightsRegion, savedOnly = false) {
+function writeLocation(query: string, by: SearchBy, region: RightsRegion, savedOnly = false, workId = "") {
   const params = new URLSearchParams();
   if (query) params.set("q", query);
   if (by !== "all") params.set("by", by);
   if (region !== "GB") params.set("region", region);
   if (savedOnly) params.set("view", "saved");
+  if (workId) params.set("work", workId);
   const suffix = params.toString();
   window.history.pushState({}, "", suffix ? `/search?${suffix}` : "/search");
 }
@@ -147,7 +190,7 @@ function loadSavedBooks() {
 }
 
 export default function SearchResultsPage() {
-  const [location, setLocation] = useState<LocationState>({ query: "", by: "all", savedOnly: false, region: "GB" });
+  const [location, setLocation] = useState<LocationState>({ query: "", by: "all", savedOnly: false, region: "GB", workId: "" });
   const [ready, setReady] = useState(false);
   const [draft, setDraft] = useState("");
   const [draftBy, setDraftBy] = useState<SearchBy>("all");
@@ -229,20 +272,24 @@ export default function SearchResultsPage() {
   const visibleBooks = useMemo(() => {
     if (!data) return [];
     let books = [...data.books];
-    if (filter !== "all") books = filter === "saved" ? books.filter((book) => saved.includes(book.id)) : books.filter((book) => book.access === filter);
+    if (filter !== "all") books = filter === "saved"
+      ? books.filter((book) => saved.includes(savedKey(book)) || saved.includes(book.id))
+      : books.filter((book) => book.access === filter);
     if (source !== "all") books = books.filter((book) => book.source === source || book.sourceRecords?.some((record) => record.source === source));
     if (format !== "all") books = books.filter((book) => bookFormats(book).includes(format));
+    if (sort === "relevance") books.sort((a, b) => (b.ranking?.score ?? 0) - (a.ranking?.score ?? 0));
     if (sort === "title") books.sort((a, b) => a.title.localeCompare(b.title));
     if (sort === "oldest") books.sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999));
     if (sort === "newest") books.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+    if (location.workId) books.sort((a, b) => Number(b.canonicalId === location.workId) - Number(a.canonicalId === location.workId));
     return books;
-  }, [data, filter, source, format, sort, saved]);
+  }, [data, filter, source, format, sort, saved, location.workId]);
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const query = draft.trim();
     writeLocation(query, draftBy, draftRegion);
-    setLocation({ query, by: draftBy, savedOnly: false, region: draftRegion });
+    setLocation({ query, by: draftBy, savedOnly: false, region: draftRegion, workId: "" });
     setFilter("all");
     setSource("all");
     setFormat("all");
@@ -253,12 +300,16 @@ export default function SearchResultsPage() {
   function selectFilter(next: AccessFilter) {
     setFilter(next);
     setVisibleCount(RESULTS_BATCH_SIZE);
-    writeLocation(location.query, location.by, location.region, next === "saved");
+    writeLocation(location.query, location.by, location.region, next === "saved", location.workId);
   }
 
-  function toggleSaved(id: string) {
+  function toggleSaved(book: Book) {
     setSaved((current) => {
-      const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
+      const keys = [savedKey(book), book.id].filter((item, index, all) => all.indexOf(item) === index);
+      const isSaved = keys.some((key) => current.includes(key));
+      const next = isSaved
+        ? current.filter((item) => !keys.includes(item))
+        : [...current, savedKey(book)];
       window.localStorage.setItem("libreleaf-saved", JSON.stringify(next));
       return next;
     });
@@ -370,12 +421,12 @@ export default function SearchResultsPage() {
           <label>Source<select value={source} onChange={(event) => { setSource(event.target.value as typeof source); setVisibleCount(RESULTS_BATCH_SIZE); }}><option value="all">All catalogues</option><option value="Project Gutenberg">Project Gutenberg</option><option value="Open Library">Open Library</option><option value="Wikisource">Wikisource</option><option value="DOAB">DOAB</option><option value="Library of Congress">Library of Congress</option></select></label>
           <label>Format<select value={format} onChange={(event) => { setFormat(event.target.value); setVisibleCount(RESULTS_BATCH_SIZE); }}><option value="all">Every format</option>{availableFormats.map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
           <label>Sort<select value={sort} onChange={(event) => { setSort(event.target.value as Sort); setVisibleCount(RESULTS_BATCH_SIZE); }}><option value="relevance">Best match</option><option value="title">Title A–Z</option><option value="oldest">Oldest first</option><option value="newest">Newest first</option></select></label>
-          {hasFilters ? <button onClick={() => { setFilter("all"); setSource("all"); setFormat("all"); setSort("relevance"); setVisibleCount(RESULTS_BATCH_SIZE); writeLocation(location.query, location.by, location.region); }}>Reset filters</button> : null}
+          {hasFilters ? <button onClick={() => { setFilter("all"); setSource("all"); setFormat("all"); setSort("relevance"); setVisibleCount(RESULTS_BATCH_SIZE); writeLocation(location.query, location.by, location.region, false, location.workId); }}>Reset filters</button> : null}
         </div>
 
         {error ? <div className="status-card" role="alert"><strong>Could not load results.</strong><p>{error} Try again in a moment.</p></div> : null}
         {loading && !data ? <div className="book-grid loading-grid" role="status" aria-label="Loading search results">{Array.from({ length: 10 }).map((_, index) => <div className="loading-card" key={index}><div /><span /><span /></div>)}</div> : null}
-        {!error && data && visibleBooks.length ? <div className="book-grid">{displayedBooks.map((book) => <BookCard key={bookKey(book)} book={book} saved={saved.includes(book.id)} onToggleSaved={() => toggleSaved(book.id)} />)}</div> : null}
+        {!error && data && visibleBooks.length ? <div className="book-grid">{displayedBooks.map((book) => <BookCard key={bookKey(book)} book={book} saved={saved.includes(savedKey(book)) || saved.includes(book.id)} focused={Boolean(location.workId && book.canonicalId === location.workId)} onToggleSaved={() => toggleSaved(book)} />)}</div> : null}
         {loadMoreError ? <p className={styles.loadMoreError} role="alert">{loadMoreError}</p> : null}
         {!error && canLoadMore ? <button className={styles.loadMore} onClick={loadMore} disabled={loadingMore}>{loadingMore ? "Loading more…" : "Load more"} <span aria-hidden="true">↓</span></button> : null}
         {!loading && !error && data && !visibleBooks.length ? <div className={`status-card ${styles.emptyHint}`}><strong>No matching books.</strong><p>{filter === "saved" ? "Save books from any result, or change the filter." : "Try a broader title, author, or subject."}</p></div> : null}

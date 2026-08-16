@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import styles from "./SearchResultsPage.module.css";
 
 export type FormatLink = {
@@ -54,6 +54,14 @@ export type Book = {
   offers?: AccessOffer[];
   why?: string[];
   clusterConfidence?: "exact" | "probable";
+  canonicalId?: string;
+  canonicalUrl?: string;
+  ranking?: {
+    method: "rrf-v1";
+    score: number;
+    sourceRanks: Array<{ source: CatalogueSource; rank: number }>;
+    reasons: string[];
+  };
 };
 
 export type SearchPayload = {
@@ -77,6 +85,7 @@ export type SearchPayload = {
     libraryOfCongress?: "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
   };
   rightsContext?: { region: "GB" | "US" | "GLOBAL"; label: string; note: string };
+  ranking?: { method: "rrf-v1"; k: number; note: string };
 };
 
 type EditionAccessLink = {
@@ -235,19 +244,26 @@ type BookCardProps = {
   book: Book;
   saved: boolean;
   onToggleSaved: () => void;
+  focused?: boolean;
 };
 
-export function BookCard({ book, saved, onToggleSaved }: BookCardProps) {
+export function BookCard({ book, saved, onToggleSaved, focused = false }: BookCardProps) {
   const routes = routesForBook(book);
   const primary = routes[0];
   const sourceRecords = sourceRecordsForBook(book);
-  const why = book.why?.join(" · ");
+  const why = [...(book.ranking?.reasons ?? []), ...(book.why ?? [])]
+    .filter((reason, index, all) => all.indexOf(reason) === index)
+    .join(" · ");
   const hasGutenbergRecord = sourceRecords.some((record) => record.source === "Project Gutenberg") || book.source === "Project Gutenberg";
-  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(focused);
   const [showAllRoutes, setShowAllRoutes] = useState(false);
   const [editionsState, setEditionsState] = useState<EditionsState>({ status: "idle" });
   const editionsHeadingId = useId();
   const visibleRoutes = showAllRoutes ? routes : representativeRoutes(routes);
+
+  useEffect(() => {
+    if (focused) setPanelOpen(true);
+  }, [focused]);
 
   async function loadEditions() {
     if (!book.workKey || editionsState.status === "loading") return;
@@ -274,7 +290,7 @@ export function BookCard({ book, saved, onToggleSaved }: BookCardProps) {
   }
 
   return (
-    <article className="book-card">
+    <article className={`book-card ${focused ? styles.focusedWork : ""}`}>
       <div className={`book-cover ${panelOpen ? "panel-open" : ""}`}>
         <button className="cover-trigger" onClick={() => setPanelOpen(true)} aria-expanded={panelOpen} aria-label={`Show ways to get ${book.title}`}>
           {book.cover ? <img src={book.cover} alt={`Cover of ${book.title}`} loading="lazy" /> : coverFallback(book.title)}
@@ -309,6 +325,7 @@ export function BookCard({ book, saved, onToggleSaved }: BookCardProps) {
                 const label = `${record.source} · ${record.recordId}`;
                 return <a href={record.detailsUrl} target="_blank" rel="noreferrer" key={`${record.source}-${record.recordId || index}`}>{label} ↗</a>;
               })}
+              {book.canonicalUrl ? <a href={book.canonicalUrl}>Permanent work link ↗</a> : null}
             </div>
             {book.workKey ? (
               <section className={styles.editions} aria-labelledby={editionsHeadingId} aria-busy={editionsState.status === "loading"}>
