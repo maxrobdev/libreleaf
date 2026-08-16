@@ -5,6 +5,7 @@ import { SiteNav } from "../app/components/SiteNav";
 import AboutLibreLeaf from "../components/AboutLibreLeaf";
 import ListsPage from "../components/ListsPage";
 import { ResourcesDirectory } from "../components/ResourcesDirectory";
+import SearchResultsPage from "../components/SearchResultsPage";
 import "../app/globals.css";
 import "./netlify.css";
 
@@ -13,6 +14,7 @@ function Route() {
 
   if (path === "/about") return <><SiteNav active="about" /><AboutLibreLeaf /></>;
   if (path === "/lists") return <><SiteNav active="lists" /><ListsPage /></>;
+  if (path === "/search") return <SearchResultsPage />;
   if (path === "/resources") {
     return (
       <main>

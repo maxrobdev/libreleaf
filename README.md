@@ -1,9 +1,11 @@
 # LibreLeaf
 
-**A free and open-source search tool for finding lawful, free-to-read books.**
+Open-source search for lawful, free-to-read books.
 
 [![CI](https://github.com/maxrobdev/libreleaf/actions/workflows/ci.yml/badge.svg)](https://github.com/maxrobdev/libreleaf/actions/workflows/ci.yml)
 [![MIT Licence](https://img.shields.io/badge/licence-MIT-214c38.svg)](LICENSE)
+
+[Use LibreLeaf](https://libreleaf-books.netlify.app/) · [Report an issue](https://github.com/maxrobdev/libreleaf/issues)
 
 LibreLeaf searches [Project Gutenberg](https://www.gutenberg.org/) and [Open Library](https://openlibrary.org/) from one interface. It provides direct public-domain downloads and clearly labelled routes to borrow or preview other books at their source.
 
@@ -85,10 +87,11 @@ app/
 ├── about/                # project position and support page
 ├── lists/                # trending, download, and lending lists
 ├── resources/            # official tools and library directory
+├── search/               # dedicated search results route
 ├── globals.css           # visual design and responsive layout
 ├── layout.tsx            # fonts and search/social metadata
-└── page.tsx              # search, filters, saved books, and result cards
-components/               # shared page and directory components
+└── page.tsx              # home discovery and search entry
+components/               # shared cards, search results, and directory pages
 netlify/                  # SPA entry and serverless search adapter
 docs/                     # architecture and roadmap
 tests/                    # rendered-output tests
@@ -130,7 +133,3 @@ LibreLeaf does not require an account and does not intentionally build a reader 
 ## Licence
 
 LibreLeaf's source code is available under the [MIT Licence](LICENSE). This licence applies to the software, not to third-party book files, covers, metadata, trademarks, or service content linked from it.
-
----
-
-Made by [Max Robson](https://github.com/maxrobdev) for readers who want open books without mystery buttons.

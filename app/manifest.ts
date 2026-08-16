@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "LibreLeaf — Free & Open Book Search",
+    name: "LibreLeaf — Open-Access Book Resolver",
     short_name: "LibreLeaf",
     description:
-      "Search public-domain books and borrowable Open Library editions from any device.",
+      "Resolve books across open catalogues and compare source-labelled download, borrow and preview routes.",
     start_url: "/",
     display: "standalone",
     background_color: "#f7f4ed",

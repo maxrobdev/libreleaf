@@ -41,8 +41,8 @@ export default function AboutLibreLeaf() {
           01 / ABOUT
         </div>
         <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>FREE AND OPEN-SOURCE</p>
-          <h1 id="about-title">Books, without the runaround.</h1>
+          <p className={styles.eyebrow}>PROJECT INFORMATION</p>
+          <h1 id="about-title">About LibreLeaf</h1>
           <p className={styles.lede}>
             We think information should be easy to find. LibreLeaf maps lawful routes to public-domain
             downloads and library lending, in plain English.
@@ -80,9 +80,9 @@ export default function AboutLibreLeaf() {
       </section>
 
       <section className={styles.statement} aria-labelledby="position-title">
-        <p className={styles.eyebrow}>OUR POSITION</p>
+        <p className={styles.eyebrow}>SOURCE POLICY</p>
         <div>
-          <h2 id="position-title">Not a shop. Not a gatekeeper.</h2>
+          <h2 id="position-title">What LibreLeaf indexes</h2>
           <div className={styles.statementCopy}>
             <p>
               LibreLeaf does not sell books, access, or attention. It searches public catalogues and
@@ -117,8 +117,8 @@ export default function AboutLibreLeaf() {
           <GitHubIcon />
         </div>
         <div>
-          <p className={styles.eyebrow}>BUILT IN PUBLIC</p>
-          <h2 id="open-title">Read the code. Change the code.</h2>
+          <p className={styles.eyebrow}>OPEN SOURCE</p>
+          <h2 id="open-title">Source code and contributions</h2>
           <p>
             LibreLeaf is open source under the MIT licence. Issues, fixes, accessibility work, and new
             lawful catalogue integrations are welcome.
@@ -132,7 +132,7 @@ export default function AboutLibreLeaf() {
       <section className={styles.support} aria-labelledby="support-title">
         <div>
           <p className={styles.eyebrow}>SUPPORT</p>
-          <h2 id="support-title">Hosting costs money. Access does not.</h2>
+          <h2 id="support-title">Support the project</h2>
         </div>
         <div className={styles.supportAction}>
           <p>Contributions help cover infrastructure and keep LibreLeaf independent.</p>

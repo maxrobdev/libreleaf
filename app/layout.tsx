@@ -18,9 +18,9 @@ const sans = DM_Sans({
 
 export async function generateMetadata(): Promise<Metadata> {
   const siteUrl = await getSiteUrl();
-  const title = "LibreLeaf | Free Public-Domain & Open Library Books UK";
+  const title = "LibreLeaf | Open-Access Book Resolver UK";
   const description =
-    "Search free public-domain books and borrowable Open Library editions with LibreLeaf, a mobile-friendly book finder for UK readers.";
+    "Resolve a book across Project Gutenberg and Open Library. Compare source-labelled download, borrow and preview routes with clear rights context for UK readers.";
 
   return {
     metadataBase: siteUrl,
@@ -32,6 +32,8 @@ export async function generateMetadata(): Promise<Metadata> {
     applicationName: "LibreLeaf",
     keywords: [
       "free books UK",
+      "open access book resolver",
+      "book availability search",
       "public domain books",
       "free classic ebooks",
       "Project Gutenberg search",
@@ -99,9 +101,14 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         name: "LibreLeaf",
         alternateName: "LibreLeaf Book Finder",
         description:
-          "A mobile-friendly search tool for public-domain books and borrowable Open Library editions.",
+          "An open-access resolver for source-labelled book downloads, borrowing and previews.",
         inLanguage: "en-GB",
         publisher: { "@id": organisationId },
+        potentialAction: {
+          "@type": "SearchAction",
+          target: new URL("/search?q={search_term_string}", siteUrl).href,
+          "query-input": "required name=search_term_string",
+        },
       },
       {
         "@type": "Organization",
@@ -115,7 +122,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         name: "LibreLeaf",
         url: siteUrl.href,
         description:
-          "Find public-domain ebooks and borrowable Open Library editions from a phone, tablet or computer.",
+          "Resolve a book across open catalogues and compare source-labelled download, borrow and preview routes.",
         applicationCategory: "EducationalApplication",
         operatingSystem: "Any",
         browserRequirements: "Requires a modern web browser with JavaScript enabled.",

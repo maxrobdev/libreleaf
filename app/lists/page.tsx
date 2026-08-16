@@ -3,8 +3,8 @@ import ListsPage from "../../components/ListsPage";
 import { SiteNav } from "../components/SiteNav";
 
 export const metadata: Metadata = {
-  title: "Free book lists",
-  description: "Browse trending public-domain books, direct free downloads and Open Library titles.",
+  title: "Live open-book lists",
+  description: "Auto-updating lists from Project Gutenberg, Standard Ebooks and Open Library, with source provenance and jurisdiction-aware access labels.",
 };
 
 export default function BookListsPage() {

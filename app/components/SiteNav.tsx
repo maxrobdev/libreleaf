@@ -5,13 +5,14 @@ import { useEffect, useId, useState } from "react";
 import styles from "./SiteNav.module.css";
 
 type SiteNavProps = {
-  active?: "home" | "lists" | "about" | "resources" | "saved";
+  active?: "home" | "search" | "lists" | "about" | "resources" | "saved";
   savedCount?: number;
   onSaved?: () => void;
 };
 
 const links = [
   { label: "Home", href: "/", key: "home" },
+  { label: "Search", href: "/search", key: "search" },
   { label: "Lists", href: "/lists", key: "lists" },
   { label: "About", href: "/about", key: "about" },
   { label: "Other tools", href: "/resources", key: "resources" },
@@ -84,7 +85,7 @@ export function SiteNav({ active, savedCount, onSaved }: SiteNavProps) {
         ) : (
           <a
             className={`${styles.saved} ${active === "saved" ? styles.active : ""}`}
-            href="/?view=saved#catalogue"
+            href="/search?view=saved"
             aria-current={active === "saved" ? "page" : undefined}
             onClick={() => setOpen(false)}
           >
