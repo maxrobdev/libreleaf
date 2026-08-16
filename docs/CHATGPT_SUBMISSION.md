@@ -26,42 +26,47 @@ MCP-backed plugin. It is not a substitute for the OpenAI Platform submission.
 
 ## Positive review cases
 
-1. **Broad title search**
+1. **Citation-ready research search and fetch**
+   - Prompt: `Research lawful ways to access Pride and Prejudice and cite the resolver record.`
+   - Expected tools: `search`, then `fetch`
+   - Expected result: `search` returns a stable `llw1.*` ID plus a canonical LibreLeaf URL; `fetch` returns the same ID, full resolver text, metadata and source-labelled routes. Structured content and JSON text content match.
+
+2. **Broad title search**
    - Prompt: `Find Frankenstein.`
    - Expected tool: `search_books`
    - Expected input: `query="Frankenstein", search_by="q"`
    - Expected result: one or more source-labelled records; Project Gutenberg files are labelled downloads and Open Library records are labelled borrow or preview where applicable.
 
-2. **Author search**
+3. **Author search**
    - Prompt: `Find books by Jane Austen.`
    - Expected tool: `search_books`
    - Expected input: `query="Jane Austen", search_by="author"`
    - Expected result: bounded results with author, source, access type, and source URL.
 
-3. **Subject search**
+4. **Subject search**
    - Prompt: `Find public catalogue books about natural history.`
    - Expected tool: `search_books`
    - Expected input: `query="natural history", search_by="subject"`
    - Expected result: relevant records from either or both catalogues, with partial-source status if one catalogue is unavailable.
 
-4. **Small result set**
+5. **Small result set**
    - Prompt: `Give me three lawful routes to read The Time Machine.`
    - Expected tool: `search_books`
    - Expected input: `query="The Time Machine", limit=3`
    - Expected result: no more than three validated records.
 
-5. **Access distinction**
+6. **Access distinction**
    - Prompt: `Which results can I download and which must I borrow? Search for Virginia Woolf.`
    - Expected tool: `search_books`
    - Expected result: each record retains its `download`, `borrow`, or `preview` access label; the response does not turn a borrow or preview record into a download.
 
-6. **Canonical access resolution**
+7. **Canonical access resolution**
    - Prompt: `Resolve Pride and Prejudice by Jane Austen for a UK reader.`
    - Expected tool: `resolve_access`
    - Expected input: `title="Pride and Prejudice", author="Jane Austen", region="GB"`
    - Expected result: one `canonicalMatch`, all validated source-labelled offers, and a ranking explanation that prioritises normalized title and author metadata.
 
-7. **Region-specific rights context**
+8. **Region-specific rights context**
    - Prompt: `Resolve Frankenstein for a US reader and explain the access routes.`
    - Expected tool: `resolve_access`
    - Expected input: `title="Frankenstein", region="US"`
@@ -96,4 +101,5 @@ MCP-backed plugin. It is not a substitute for the OpenAI Platform submission.
 - Add the platform-provided domain challenge token at
   `/.well-known/openai-apps-challenge` when requested.
 - Run MCP Inspector against production and save the final tool scan.
+- Confirm the production `search` and `fetch` schemas pass the ChatGPT company-knowledge compatibility scan.
 - Submit for review, then publish only after approval.

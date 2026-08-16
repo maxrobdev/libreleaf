@@ -27,7 +27,7 @@ I built LibreLeaf because public-domain knowledge should be easy for people to f
 - Starts with popular open books when no search has been made
 - Provides separate trending, free-download, and library lists
 - Includes a directory of official ebook tools, open catalogues, and UK library services
-- Exposes read-only `search_books` and `resolve_access` tools over MCP
+- Exposes standard citation-ready `search` and `fetch` plus focused `search_books` and `resolve_access` tools over MCP
 - Works responsively across desktop and mobile layouts
 
 LibreLeaf is intended for lawful access only. It deliberately does **not** search Anna's Archive, LibGen, torrent indexes, shadow libraries, or other sources primarily associated with unauthorised copies.

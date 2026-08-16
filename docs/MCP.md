@@ -5,6 +5,19 @@ MCP clients can query the same catalogues as the web tool.
 
 ## Tool contract
 
+`search(query)` and `fetch(id)` implement OpenAI's read-only compatibility
+contract for ChatGPT research and company knowledge. `search` returns only a
+stable LibreLeaf work ID, title and canonical citation URL. `fetch` refreshes
+that ID against the catalogues and returns the complete resolver record as both
+structured content and the same JSON-encoded text content. Its record includes
+authors, provenance, source-labelled routes, rights context and partial-source
+status; it does not return or reproduce a book's copyrighted text.
+
+Stable IDs are derived from normalized work title and primary author. For a
+record without usable author metadata, the ID also retains its source and
+source record ID. This makes IDs independent of whichever catalogue answered
+first while avoiding title-only merges.
+
 `search_books(query, search_by?, limit?, region?)` searches Project Gutenberg,
 Open Library, Wikisource, DOAB and the Library of Congress. `search_by` accepts `q`, `title`, `author`, or
 `subject`; `limit` is bounded to 1–20 records. Results preserve download,
@@ -23,14 +36,14 @@ route counts only as tie-breakers. Its explanation makes that ordering
 auditable. A separate `explain_result` tool is deliberately omitted because the
 resolver already returns the underlying match reasons and ranking method.
 
-Both tools accept `region` as `GB`, `US`, or `GLOBAL`. Region changes the rights
+The focused tools accept `region` as `GB`, `US`, or `GLOBAL`. Region changes the rights
 context reported by sources; it does not make a legal determination. In
 particular, Project Gutenberg's public-domain assessment is US-specific unless
 an offer supplies separate applicable rights metadata.
 
 The server has no authentication, user accounts, writes, or custom UI. It does
 not request personal data; normal hosting request logs are covered by the public
-privacy notice. Every tool is annotated:
+privacy notice. All four tools are annotated:
 
 - `readOnlyHint: true`
 - `destructiveHint: false`
@@ -69,3 +82,8 @@ server remains public and read-only.
 The submission must describe all five sources accurately. LibreLeaf must never
 label borrow, preview, read or listen records as downloads, and must not present
 a source-jurisdiction assessment as globally applicable.
+
+The standard tool shapes follow OpenAI's current
+[MCP compatibility guidance](https://developers.openai.com/api/docs/mcp), and
+the deployment checklist follows the current
+[plugin MCP server guidance](https://developers.openai.com/plugins/build/mcp-server#deploy-the-endpoint).

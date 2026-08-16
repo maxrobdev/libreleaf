@@ -5,6 +5,9 @@ import { GET as searchRoute } from "../app/api/search/route";
 
 const MAX_TOOL_RESULTS = 20;
 const DEFAULT_TOOL_RESULTS = 10;
+const PUBLIC_SITE_ORIGIN = "https://libreleaf-books.netlify.app";
+const WORK_ID_PREFIX = "llw1.";
+const MAX_WORK_ID_LENGTH = 1_024;
 
 const searchBySchema = z.enum(["q", "title", "author", "subject"]);
 const rightsRegionSchema = z.enum(["GB", "US", "GLOBAL"]);
@@ -97,9 +100,45 @@ const resolveAccessResultSchema = z.object({
   sources: sourceStatusSchema,
 });
 
+const compatibilitySearchItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  url: z.string().url(),
+});
+
+const compatibilitySearchResultSchema = z.object({
+  results: z.array(compatibilitySearchItemSchema),
+});
+
+const compatibilityFetchResultSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  text: z.string(),
+  url: z.string().url(),
+  metadata: z.object({
+    authors: z.array(z.string()),
+    year: z.number().int().optional(),
+    sources: z.array(catalogueSourceSchema),
+    accessTypes: z.array(accessSchema),
+    routeCount: z.number().int().nonnegative(),
+    rightsRegion: rightsRegionSchema,
+    partial: z.boolean(),
+    workKey: z.string().optional(),
+  }),
+});
+
+const workIdentitySchema = z.object({
+  v: z.literal(1),
+  t: z.string().min(1).max(300),
+  a: z.string().min(1).max(240).optional(),
+  s: catalogueSourceSchema.optional(),
+  r: z.string().min(1).max(300).optional(),
+}).refine((identity) => Boolean(identity.a || (identity.s && identity.r)));
+
 type SearchBy = z.infer<typeof searchBySchema>;
 type SearchResult = z.infer<typeof searchResultSchema>;
 type ResolveAccessResult = z.infer<typeof resolveAccessResultSchema>;
+type WorkIdentity = z.infer<typeof workIdentitySchema>;
 type SearchRouteHandler = (request: Request) => Promise<Response>;
 
 export type SearchDependencies = {
@@ -283,6 +322,75 @@ function normaliseMatchAuthor(value: string) {
   return normaliseMatchText(value).split(" ").filter(Boolean).sort().join(" ");
 }
 
+function normaliseIdentityText(value: string) {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase("en-GB")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+function normaliseIdentityAuthor(value: string) {
+  return normaliseIdentityText(value).split(" ").filter(Boolean).sort().join(" ");
+}
+
+function base64UrlEncode(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlDecode(value: string) {
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const binary = atob(value.replace(/-/g, "+").replace(/_/g, "/") + padding);
+  return new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0)));
+}
+
+function workIdentity(book: z.infer<typeof bookSchema>): WorkIdentity {
+  const title = normaliseIdentityText(book.title) || book.title.trim().slice(0, 300);
+  const author = normaliseIdentityAuthor(book.authors[0] ?? "");
+  if (author) return { v: 1, t: title, a: author };
+
+  const record = book.sourceRecords?.[0];
+  if (record) return { v: 1, t: title, s: record.source, r: record.recordId };
+  const fallbackSource = catalogueSourceSchema.options.find((source) => book.source.includes(source)) ?? "Open Library";
+  return { v: 1, t: title, s: fallbackSource, r: book.id };
+}
+
+function stableWorkId(book: z.infer<typeof bookSchema>) {
+  return `${WORK_ID_PREFIX}${base64UrlEncode(JSON.stringify(workIdentity(book)))}`;
+}
+
+function decodeWorkId(value: string): WorkIdentity {
+  if (!value.startsWith(WORK_ID_PREFIX) || value.length > MAX_WORK_ID_LENGTH || !/^[A-Za-z0-9._-]+$/.test(value)) {
+    throw new Error("Invalid LibreLeaf work ID.");
+  }
+  try {
+    const decoded: unknown = JSON.parse(base64UrlDecode(value.slice(WORK_ID_PREFIX.length)));
+    return workIdentitySchema.parse(decoded);
+  } catch {
+    throw new Error("Invalid LibreLeaf work ID.");
+  }
+}
+
+function canonicalWorkUrl(book: z.infer<typeof bookSchema>, id = stableWorkId(book)) {
+  const url = new URL("/search/", PUBLIC_SITE_ORIGIN);
+  url.searchParams.set("q", book.title);
+  url.searchParams.set("by", "title");
+  url.searchParams.set("work", id);
+  return url.toString();
+}
+
+function identityMatches(book: z.infer<typeof bookSchema>, expected: WorkIdentity) {
+  const actual = workIdentity(book);
+  return actual.v === expected.v
+    && actual.t === expected.t
+    && actual.a === expected.a
+    && actual.s === expected.s
+    && actual.r === expected.r;
+}
+
 function tokenSimilarity(left: string, right: string) {
   const leftTokens = new Set(left.split(" ").filter(Boolean));
   const rightTokens = new Set(right.split(" ").filter(Boolean));
@@ -372,12 +480,148 @@ export async function resolveAccess(
   });
 }
 
+export async function compatibilitySearch(
+  query: string,
+  dependencies: SearchDependencies = {},
+) {
+  const search = await searchBooks(
+    { query, searchBy: "q", limit: DEFAULT_TOOL_RESULTS, region: "GB" },
+    dependencies,
+  );
+  const seen = new Set<string>();
+  const results = search.books.flatMap((book) => {
+    const id = stableWorkId(book);
+    if (seen.has(id)) return [];
+    seen.add(id);
+    return [{ id, title: book.title, url: canonicalWorkUrl(book, id) }];
+  });
+  return compatibilitySearchResultSchema.parse({ results });
+}
+
+function fetchedWorkText(
+  book: z.infer<typeof bookSchema>,
+  search: SearchResult,
+) {
+  const author = book.authors.length ? book.authors.join(", ") : "Author not supplied by the catalogues";
+  const publication = book.year ? `First publication year: ${book.year}.` : "Publication year not supplied.";
+  const routes = uniqueOffers(book.offers ?? []).map((offer) => {
+    const rights = offer.rights
+      ? ` Rights: ${offer.rights.note}${offer.rights.applicability ? ` Applicability: ${offer.rights.applicability}.` : ""}`
+      : " Rights were not assessed by LibreLeaf; check the source and local law.";
+    return `- ${offer.label} — ${offer.source} (${offer.access}): ${offer.url}.${rights}`;
+  });
+  const reasons = book.why?.length ? `Resolver notes: ${book.why.join(" ")}` : "";
+  return [
+    `Work: ${book.title}.`,
+    `Author: ${author}.`,
+    publication,
+    `LibreLeaf found ${routes.length} validated access route${routes.length === 1 ? "" : "s"}.`,
+    routes.length ? `Access routes:\n${routes.join("\n")}` : "No validated access route was returned.",
+    `Rights context: ${search.rightsContext.label}. ${search.rightsContext.note}`,
+    reasons,
+    search.partial ? "One or more catalogues were temporarily unavailable, so this record may be incomplete." : "All queried catalogues responded or were exhausted.",
+  ].filter(Boolean).join("\n\n");
+}
+
+export async function compatibilityFetch(
+  id: string,
+  dependencies: SearchDependencies = {},
+) {
+  const identity = decodeWorkId(id);
+  const search = await searchBooks(
+    { query: identity.t, searchBy: "title", limit: MAX_TOOL_RESULTS, region: "GB" },
+    dependencies,
+  );
+  const book = search.books.find((candidate) => identityMatches(candidate, identity));
+  if (!book) throw new Error("This LibreLeaf work could not be refreshed from the public catalogues.");
+
+  const sources = [...new Set((book.sourceRecords ?? []).map((record) => record.source))];
+  const offers = uniqueOffers(book.offers ?? []);
+  const accessTypes = [...new Set(offers.map((offer) => offer.access))];
+  return compatibilityFetchResultSchema.parse({
+    id,
+    title: book.title,
+    text: fetchedWorkText(book, search),
+    url: canonicalWorkUrl(book, id),
+    metadata: {
+      authors: book.authors,
+      year: book.year,
+      sources,
+      accessTypes,
+      routeCount: offers.length,
+      rightsRegion: search.rightsContext.region,
+      partial: search.partial,
+      workKey: book.workKey,
+    },
+  });
+}
+
 export function createLibreLeafMcpServer(dependencies: SearchDependencies = {}) {
   const server = new McpServer(
     { name: "libreleaf", version: "1.0.0" },
     {
       instructions:
-        "Search lawful public-domain, library and open-access catalogues. Every route includes a source and access type. Rights context is source metadata, not legal advice; do not describe read, preview or borrow routes as downloads.",
+        "Use search then fetch for ChatGPT research and citations; use search_books for structured catalogue exploration and resolve_access for one canonical work. Search lawful public-domain, library and open-access catalogues. Every route includes a source and access type. Rights context is source metadata, not legal advice; do not describe read, preview or borrow routes as downloads.",
+    },
+  );
+
+  server.registerTool(
+    "search",
+    {
+      title: "Search LibreLeaf works",
+      description:
+        "Search LibreLeaf's public book catalogues for citation-ready work records. Use fetch with a returned ID to retrieve the complete resolver record and access routes.",
+      inputSchema: {
+        query: z.string().trim().min(1).max(120).describe("Book title, author, subject, or keywords."),
+      },
+      outputSchema: compatibilitySearchResultSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ query }) => {
+      try {
+        const result = await compatibilitySearch(query, dependencies);
+        return {
+          structuredContent: result,
+          content: [{ type: "text" as const, text: JSON.stringify(result) }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "LibreLeaf search could not be completed.";
+        return { isError: true, content: [{ type: "text" as const, text: message }] };
+      }
+    },
+  );
+
+  server.registerTool(
+    "fetch",
+    {
+      title: "Fetch a LibreLeaf work",
+      description:
+        "Fetch one citation-ready LibreLeaf resolver record by the stable ID returned from search, including provenance, rights context, and validated access routes.",
+      inputSchema: {
+        id: z.string().min(WORK_ID_PREFIX.length + 4).max(MAX_WORK_ID_LENGTH).describe("Stable LibreLeaf work ID returned by search."),
+      },
+      outputSchema: compatibilityFetchResultSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ id }) => {
+      try {
+        const result = await compatibilityFetch(id, dependencies);
+        return {
+          structuredContent: result,
+          content: [{ type: "text" as const, text: JSON.stringify(result) }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "The LibreLeaf work could not be fetched.";
+        return { isError: true, content: [{ type: "text" as const, text: message }] };
+      }
     },
   );
 

@@ -22,7 +22,7 @@ An offer can be source-assessed public domain, openly licensed, source-policy fr
 - `app/` contains React routes and the shared search, lists and editions handlers.
 - `components/` contains the resolver UI and reusable book cards.
 - `lib/sources/` contains typed catalogue adapters.
-- `mcp/` exposes `search_books` and `resolve_access` over Streamable HTTP.
+- `mcp/` exposes citation-compatible `search` and `fetch`, plus focused `search_books` and `resolve_access`, over Streamable HTTP. Stable self-contained work IDs let stateless `fetch` calls refresh the same canonical work without storing user searches.
 - `netlify/edge-functions/` places latency-sensitive public APIs near users.
 - `netlify/functions/` hosts MCP and Node fallbacks.
 - `netlify/{search,lists,about,resources}/index.html` gives each public SPA route distinct crawlable metadata.

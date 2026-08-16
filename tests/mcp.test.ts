@@ -38,7 +38,7 @@ test("initializes through Streamable HTTP with server instructions", async () =>
   assert.match(payload.result.instructions ?? "", /lawful public-domain/i);
 });
 
-test("advertises focused read-only search and access-resolution tools", async () => {
+test("advertises standard research tools and focused resolver tools", async () => {
   const response = await mcpRequest({
     jsonrpc: "2.0",
     id: 1,
@@ -51,7 +51,7 @@ test("advertises focused read-only search and access-resolution tools", async ()
   const payload = await response.json() as {
     result: { tools: Array<{ name: string; annotations: Record<string, boolean> }> };
   };
-  assert.deepEqual(payload.result.tools.map((tool) => tool.name), ["search_books", "resolve_access"]);
+  assert.deepEqual(payload.result.tools.map((tool) => tool.name), ["search", "fetch", "search_books", "resolve_access"]);
   for (const tool of payload.result.tools) {
     assert.deepEqual(tool.annotations, {
       readOnlyHint: true,
@@ -59,6 +59,104 @@ test("advertises focused read-only search and access-resolution tools", async ()
       openWorldHint: true,
     });
   }
+});
+
+test("search and fetch expose stable citation-ready work records", async () => {
+  const requests: Array<{ query: string | null; by: string | null }> = [];
+  const offer = {
+    source: "Project Gutenberg",
+    access: "download",
+    label: "Download EPUB",
+    format: "EPUB",
+    url: "https://www.gutenberg.org/ebooks/1342.epub3.images",
+    rights: {
+      status: "source-assessed-public-domain",
+      jurisdiction: "US",
+      note: "Project Gutenberg marks this edition as public domain in the United States.",
+      applicability: "source-jurisdiction-only",
+    },
+  };
+  const searchHandler = async (request: Request) => {
+    const url = new URL(request.url);
+    requests.push({ query: url.searchParams.get("q"), by: url.searchParams.get("by") });
+    return Response.json({
+      query: url.searchParams.get("q"),
+      books: [{
+        id: "gutenberg-1342",
+        title: "Pride and Prejudice",
+        authors: ["Austen, Jane"],
+        year: 1813,
+        source: "Project Gutenberg",
+        access: "download",
+        formats: [{ label: "EPUB", url: offer.url }],
+        detailsUrl: "https://www.gutenberg.org/ebooks/1342",
+        clusterConfidence: "probable",
+        why: ["Matched in Project Gutenberg."],
+        offers: [offer],
+        sourceRecords: [{
+          source: "Project Gutenberg",
+          recordId: "1342",
+          detailsUrl: "https://www.gutenberg.org/ebooks/1342",
+          offers: [offer],
+        }],
+      }],
+      sources: { gutenberg: "ok", openLibrary: "timeout", wikisource: "exhausted", doab: "exhausted", libraryOfCongress: "exhausted" },
+      rightsContext: {
+        region: "GB",
+        label: "United Kingdom",
+        note: "Check local law and edition-specific terms.",
+      },
+    });
+  };
+
+  const searchResponse = await mcpRequest({
+    jsonrpc: "2.0",
+    id: 20,
+    method: "tools/call",
+    params: { name: "search", arguments: { query: "Pride and Prejudice" } },
+  }, { searchHandler });
+  const searchPayload = await searchResponse.json() as {
+    result: {
+      content: Array<{ type: string; text: string }>;
+      structuredContent: { results: Array<{ id: string; title: string; url: string }> };
+    };
+  };
+  const result = searchPayload.result.structuredContent.results[0];
+  assert.match(result.id, /^llw1\.[A-Za-z0-9_-]+$/);
+  assert.equal(result.title, "Pride and Prejudice");
+  assert.match(result.url, /^https:\/\/libreleaf-books\.netlify\.app\/search\/\?/);
+  assert.deepEqual(JSON.parse(searchPayload.result.content[0].text), searchPayload.result.structuredContent);
+
+  const fetchResponse = await mcpRequest({
+    jsonrpc: "2.0",
+    id: 21,
+    method: "tools/call",
+    params: { name: "fetch", arguments: { id: result.id } },
+  }, { searchHandler });
+  const fetchPayload = await fetchResponse.json() as {
+    result: {
+      content: Array<{ type: string; text: string }>;
+      structuredContent: {
+        id: string;
+        title: string;
+        text: string;
+        url: string;
+        metadata: { routeCount: number; rightsRegion: string; partial: boolean };
+      };
+    };
+  };
+  assert.equal(fetchPayload.result.structuredContent.id, result.id);
+  assert.equal(fetchPayload.result.structuredContent.title, "Pride and Prejudice");
+  assert.match(fetchPayload.result.structuredContent.text, /Access routes:/);
+  assert.match(fetchPayload.result.structuredContent.text, /source-jurisdiction-only/);
+  assert.equal(fetchPayload.result.structuredContent.metadata.routeCount, 1);
+  assert.equal(fetchPayload.result.structuredContent.metadata.rightsRegion, "GB");
+  assert.equal(fetchPayload.result.structuredContent.metadata.partial, true);
+  assert.deepEqual(JSON.parse(fetchPayload.result.content[0].text), fetchPayload.result.structuredContent);
+  assert.deepEqual(requests, [
+    { query: "Pride and Prejudice", by: "q" },
+    { query: "pride and prejudice", by: "title" },
+  ]);
 });
 
 test("resolve_access returns one canonical match, all offers, and an auditable ranking", async () => {
@@ -306,6 +404,18 @@ test("rejects invalid tool input before calling a catalogue", async (context) =>
   });
   const resolvePayload = await resolveResponse.json() as { result: { isError?: boolean } };
   assert.equal(resolvePayload.result.isError, true);
+
+  const fetchResponse = await mcpRequest({
+    jsonrpc: "2.0",
+    id: 5,
+    method: "tools/call",
+    params: {
+      name: "fetch",
+      arguments: { id: "not-a-libreleaf-work" },
+    },
+  });
+  const fetchPayload = await fetchResponse.json() as { result: { isError?: boolean } };
+  assert.equal(fetchPayload.result.isError, true);
 });
 
 test("answers CORS preflight without creating a session", async () => {
