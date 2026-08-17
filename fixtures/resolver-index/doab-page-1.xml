@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
+  <responseDate>2026-08-17T12:00:00Z</responseDate>
+  <ListRecords>
+    <record>
+      <header>
+        <identifier>oai:directory.doabooks.org:20.500.12854/26303</identifier>
+        <datestamp>2025-07-30T08:59:03Z</datestamp>
+      </header>
+      <metadata>
+        <metadata xmlns="http://www.lyncode.com/xoai">
+          <element name="dc">
+            <element name="contributor"><element name="author"><element name="none"><field name="value">Snijder, Ronald</field><field name="authority">7d33c437-24e5-41b4-ad81-e4d61caedee1</field><field name="confidence">300</field></element></element></element>
+            <element name="date"><element name="issued"><element name="none"><field name="value">2019</field></element></element></element>
+            <element name="language"><element name="none"><field name="value">eng</field></element></element>
+            <element name="subject"><element name="other"><element name="none"><field name="value">Open access publishing</field></element></element></element>
+            <element name="title">
+              <element name="none"><field name="value">The deliverance of open access books</field></element>
+              <element name="alternative"><element name="none"><field name="value">Examining usage &amp; dissemination</field></element></element>
+            </element>
+            <element name="type"><element name="none"><field name="value">book</field></element></element>
+          </element>
+          <element name="oapen">
+            <element name="identifier"><element name="doi"><element name="none"><field name="value">10.26530/OAPEN_1004809</field></element></element></element>
+            <element name="relation"><element name="isbn"><element name="none"><field name="value">9789085551201</field></element></element></element>
+            <element name="imprint"><element name="none"><field name="value">Pallas Publications</field></element></element>
+          </element>
+          <element name="bundles"><element name="bundle"><element name="bitstreams"><element name="bitstream">
+            <field name="oapenidentifierdownloadUrl">https://library.oapen.org/bitstream/20.500.12657/25287/1/book.pdf</field>
+            <field name="rightsuri">https://creativecommons.org/licenses/by-nc/4.0/</field>
+          </element></element></element></element>
+          <element name="others"><field name="handle">20.500.12854/26303</field></element>
+          <element name="linkedItemsMetadata"><element name="oapen.relation.isPublishedBy">
+            <element name="publisher.name"><field name="value">Amsterdam University Press</field></element>
+            <element name="publisher.country"><field name="value">Netherlands</field></element>
+          </element></element>
+        </metadata>
+      </metadata>
+    </record>
+    <record>
+      <header status="deleted">
+        <identifier>oai:directory.doabooks.org:20.500.12854/removed</identifier>
+        <datestamp>2026-08-16</datestamp>
+      </header>
+    </record>
+    <record>
+      <header>
+        <identifier>oai:directory.doabooks.org:20.500.12854/article</identifier>
+        <datestamp>2026-08-16T01:00:00Z</datestamp>
+      </header>
+      <metadata><metadata xmlns="http://www.lyncode.com/xoai">
+        <element name="dc">
+          <element name="title"><element name="none"><field name="value">A journal article</field></element></element>
+          <element name="type"><element name="none"><field name="value">article</field></element></element>
+        </element>
+        <element name="others"><field name="handle">20.500.12854/article</field></element>
+      </metadata></metadata>
+    </record>
+    <resumptionToken completeListSize="4" cursor="0">next-token&amp;opaque</resumptionToken>
+  </ListRecords>
+</OAI-PMH>

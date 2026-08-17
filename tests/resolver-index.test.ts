@@ -5,10 +5,13 @@ import { parseIndexNdjson, ResolverIndex, validateIndexEntry } from "../lib/reso
 import { resolveIndexHttpRequest } from "../lib/resolver-index/server.ts";
 import { buildResolverSnapshot } from "../lib/resolver-index/snapshot.ts";
 import { generateGutenbergCsvEntries, type GutenbergCsvReport } from "../lib/resolver-index/importers/gutenberg-csv.ts";
+import { harvestDoabOai, parseDoabOaiPage } from "../lib/resolver-index/importers/doab-oai.ts";
 import type { ResolverIndexEntry } from "../lib/resolver-index/types.ts";
 
 const fixtureText = readFileSync(new URL("../fixtures/resolver-index/sample.ndjson", import.meta.url), "utf8");
 const fixtureEntries = parseIndexNdjson(fixtureText);
+const doabPageOne = readFileSync(new URL("../fixtures/resolver-index/doab-page-1.xml", import.meta.url), "utf8");
+const doabPageTwo = readFileSync(new URL("../fixtures/resolver-index/doab-page-2.xml", import.meta.url), "utf8");
 
 function freshIndex() {
   return new ResolverIndex(":memory:");
@@ -280,4 +283,95 @@ test("a bounded Gutenberg CSV smoke import is explicitly incomplete", () => {
   assert.equal(report.complete, false);
   assert.equal(report.lastRecordId, "1");
   assert.throws(() => collectGutenberg(csv.replace("Text#,Type", "id,type")), /Unexpected Project Gutenberg CSV header/);
+});
+
+test("the DOAB OAI-PMH importer retains book-level access, licence and identifier evidence", () => {
+  const page = parseDoabOaiPage(doabPageOne, { fetchedAt: "2026-08-17T12:05:00.000Z" });
+  assert.equal(page.report.recordsSeen, 3);
+  assert.equal(page.report.recordsImported, 1);
+  assert.equal(page.report.recordsDeleted, 1);
+  assert.equal(page.report.recordsSkipped, 1);
+  assert.equal(page.report.completeListSize, 4);
+  assert.equal(page.report.nextResumptionToken, "next-token&opaque");
+  const [entry] = page.entries;
+  assert.equal(entry?.work.title, "The deliverance of open access books");
+  assert.deepEqual(entry?.work.authors, ["Snijder, Ronald"]);
+  assert.equal(entry?.work.workKey, "doi:10.26530/oapen_1004809");
+  assert.equal(entry?.work.country, "Netherlands");
+  assert.equal(entry?.work.offers[0]?.access, "download");
+  assert.equal(entry?.work.offers[0]?.format, "PDF");
+  assert.equal(entry?.work.offers[0]?.rights?.status, "open-licence");
+  assert.equal(entry?.work.offers[0]?.rights?.licenceUrl, "https://creativecommons.org/licenses/by-nc/4.0/");
+  assert.match(entry?.merge.evidence.join(" ") ?? "", /source datestamp 2025-07-30T08:59:03Z/);
+
+  const index = freshIndex();
+  try {
+    index.ingest(page.entries, "doab-oai-pmh-xoai-v1");
+    const result = index.search("9789085551201");
+    assert.equal(result.total, 1);
+    assert.equal(result.books[0]?.source, "DOAB");
+    assert.equal(result.books[0]?.indexProvenance[0]?.merge.algorithmVersion, "doab-oai-pmh-xoai-v1");
+  } finally {
+    index.close();
+  }
+});
+
+test("the DOAB harvester follows opaque resumption tokens to exhaustion", async () => {
+  const urls: URL[] = [];
+  const imported: ResolverIndexEntry[] = [];
+  const fetcher = (async (input: string | URL | Request) => {
+    const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+    urls.push(url);
+    return new Response(url.searchParams.has("resumptionToken") ? doabPageTwo : doabPageOne, {
+      status: 200,
+      headers: { "content-type": "text/xml" },
+    });
+  }) as typeof fetch;
+  const report = await harvestDoabOai({
+    fetchedAt: "2026-08-17T12:05:00.000Z",
+    from: "2026-08-16",
+    until: "2026-08-17",
+    fetcher,
+    onPage(page) {
+      imported.push(...page.entries);
+    },
+  });
+  assert.equal(urls.length, 2);
+  assert.equal(urls[0]?.searchParams.get("metadataPrefix"), "xoai");
+  assert.equal(urls[0]?.searchParams.get("from"), "2026-08-16");
+  assert.equal(urls[0]?.searchParams.get("until"), "2026-08-17");
+  assert.equal(urls[1]?.searchParams.get("resumptionToken"), "next-token&opaque");
+  assert.equal(urls[1]?.searchParams.has("metadataPrefix"), false);
+  assert.equal(urls[1]?.searchParams.has("from"), false);
+  assert.equal(report.complete, true);
+  assert.equal(report.pagesFetched, 2);
+  assert.equal(report.recordsSeen, 4);
+  assert.equal(report.recordsImported, 2);
+  assert.equal(report.recordsDeleted, 1);
+  assert.equal(report.recordsSkipped, 1);
+  assert.equal(report.pageChecksums.length, 2);
+  assert.equal(report.nextResumptionToken, null);
+  assert.match(report.notes.join(" "), /metadata feeds are CC0/);
+  assert.equal(imported[1]?.work.offers[0]?.access, "read");
+  assert.equal(imported[1]?.work.offers[0]?.rights?.status, "source-provided-access");
+});
+
+test("bounded DOAB harvests are explicit and unsafe XML is rejected", async () => {
+  const fetcher = (async () => new Response(doabPageOne, { status: 200 })) as typeof fetch;
+  const report = await harvestDoabOai({
+    fetchedAt: "2026-08-17T12:05:00.000Z",
+    until: "2026-08-17",
+    maxPages: 1,
+    fetcher,
+  });
+  assert.equal(report.complete, false);
+  assert.equal(report.nextResumptionToken, "next-token&opaque");
+  assert.throws(
+    () => parseDoabOaiPage(doabPageOne.replace("<OAI-PMH", "<!DOCTYPE x [<!ENTITY y SYSTEM 'file:///etc/passwd'>]><OAI-PMH"), { fetchedAt: "2026-08-17T12:05:00.000Z" }),
+    /must not contain a DTD/,
+  );
+  assert.throws(
+    () => parseDoabOaiPage("<OAI-PMH><responseDate>2026-08-17T12:00:00Z</responseDate><error code=\"badArgument\">bad</error></OAI-PMH>", { fetchedAt: "2026-08-17T12:05:00.000Z" }),
+    /DOAB OAI error badArgument/,
+  );
 });

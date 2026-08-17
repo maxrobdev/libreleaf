@@ -274,7 +274,7 @@ npm run resolver:index -- search \
           "refresh_runs retain successful and failed imports; a failed refresh never deletes the last known record.",
         ],
         paragraphs: [
-          "A cursor-exhausting snapshot builder emits deterministic NDJSON and an explicit completeness report. The official Project Gutenberg weekly CSV importer adds catalogue metadata without treating Gutenberg's ebook issue date as print publication year and without inventing current file offers or worldwide rights.",
+          "A cursor-exhausting snapshot builder emits deterministic NDJSON and an explicit completeness report. The official Project Gutenberg weekly CSV importer adds catalogue metadata without treating Gutenberg's ebook issue date as print publication year or inventing current file offers. The DOAB OAI-PMH importer exhausts opaque resumption tokens, archives and checksums every raw page, retains DOI/ISBN/licence evidence and keeps the feed's CC0 metadata licence separate from each book's reuse terms.",
         ],
       },
       {
@@ -288,6 +288,7 @@ npm run resolver:index -- search \
     references: [
       { label: "Resolver index operations", url: "https://github.com/maxrobdev/libreleaf/blob/main/docs/RESOLVER_INDEX.md" },
       { label: "Index source and migrations", url: "https://github.com/maxrobdev/libreleaf/tree/main/lib/resolver-index" },
+      { label: "DOAB metadata harvesting", url: "https://www.doabooks.org/en/resources/metadata-harvesting-and-content-dissemination" },
       { label: "Node SQLite API", url: "https://nodejs.org/docs/latest-v22.x/api/sqlite.html" },
       { label: "SQLite FTS5", url: "https://www.sqlite.org/fts5.html" },
     ],

@@ -66,6 +66,25 @@ The importer also writes `gutenberg.ndjson.report.json`. It validates the exact 
 
 The CSV's `Issued` field is Project Gutenberg's ebook release date, not the original print publication year, so it is not mapped to `year`. The feed does not prove that a current EPUB/PDF route is working and does not make a worldwide copyright determination. Offers remain empty until a current source refresh supplies a validated route and rights statement.
 
+## Harvest DOAB open-access metadata
+
+DOAB exposes its catalogue through OAI-PMH. Use a fixed inclusive `until` boundary so a multi-page run has a reproducible scope. `from` is optional for the first full harvest and recommended for later incremental runs:
+
+```sh
+npm run resolver:index:import:doab -- \
+  --output data/resolver-index/doab-2026-08-17.ndjson \
+  --archive-dir data/resolver-index/doab-2026-08-17-pages \
+  --fetched-at 2026-08-17T12:00:00Z \
+  --from 2026-08-16 \
+  --until 2026-08-17
+```
+
+The importer follows OAI-PMH resumption tokens as opaque values until the list is exhausted. Every raw XML page is archived alongside the NDJSON, and the report records a SHA-256 checksum for each page, record counts, source response time, date window and completeness. It refuses to overwrite an existing output or archive. `--max-pages` is available for a bounded smoke run; a remaining token makes the report explicitly incomplete and the command exits with status `2`.
+
+Only records whose source type is `book` or `monograph` enter the index. DOIs, ISBNs, subjects, publishers, source datestamps and publisher-supplied access routes remain attributable to the DOAB record. A visibly direct OAPEN PDF/EPUB URL becomes a download offer; otherwise the importer retains the DOAB item page as a read route.
+
+DOAB states that its metadata feeds are CC0 1.0. That metadata licence is not the book licence. When a record supplies a book licence URL, the offer retains it as publisher-supplied evidence. Without one, the offer is labelled `source-provided-access` and reuse remains unassessed. Deleted OAI headers are counted and archived but do not remove prior records until LibreLeaf has a reviewed source-specific tombstone policy.
+
 Export every indexed table as deterministic JSON:
 
 ```sh
@@ -120,3 +139,5 @@ Production search still uses live adapters while scheduled importer coverage is 
 - [SQLite FTS5](https://www.sqlite.org/fts5.html)
 - [SQLite JSON functions](https://www.sqlite.org/json1.html)
 - [Project Gutenberg machine-readable catalogues](https://www.gutenberg.org/ebooks/offline_catalogs.html)
+- [DOAB metadata harvesting and dissemination](https://www.doabooks.org/en/resources/metadata-harvesting-and-content-dissemination)
+- [OAI-PMH 2.0 flow control and ListRecords](https://www.openarchives.org/OAI/2.0/openarchivesprotocol.htm)

@@ -97,7 +97,7 @@ Every substantive product request from the build conversation is represented bel
 ### Next / not yet implemented
 
 - Custom domain research and migration, including live price/renewal/trademark checks and coordinated canonical redirects. See LL-012.
-- Scheduled full-source importers, reviewed tombstones/freshness, deployment storage and production-primary cutover for the shipped open resolver index. See LL-017.
+- Additional source importers, reviewed tombstones/freshness, deployment storage and production-primary cutover for the shipped open resolver index. Gutenberg CSV and DOAB OAI-PMH ingestion are complete. See LL-017.
 - More country/language sources, approved Standard Ebooks feed, national libraries, university OA catalogues, and additional Wikisource editions. See LL-010/LL-018.
 - Education section and source-cited reading-set tools. See LL-019.
 - Subtle, disclosed, edition-aware affiliate purchase fallback only when no open route exists. See LL-013.
@@ -337,7 +337,7 @@ Every substantive product request from the build conversation is represented bel
 
 ### LL-017 · Open resolver index (v0.2)
 
-- Status: in progress; open local reference index complete, scheduled production cutover pending
+- Status: in progress; Gutenberg and DOAB catalogue ingestion complete, production cutover pending
 - Owner: root agent
 - Replace latency-sensitive live fan-out as the primary path with a scheduled, source-attributed canonical-work index.
 - Use an open schema, checked-in migrations, reproducible importers, documented retention, and full JSON/CSV export. The complete stack must run without Netlify and without a proprietary hosted database.
@@ -345,7 +345,7 @@ Every substantive product request from the build conversation is represented bel
 - Use live adapters for refresh and availability checks, not as the only copy of catalogue metadata. Failed refreshes keep the last known record with visible freshness.
 - Evaluate PostgreSQL full-text search plus a replaceable optional search engine; do not make ranking dependent on a closed model or vendor-only feature.
 - Acceptance: a clean self-hosted install can ingest fixtures, build the canonical index, search locally, export its data, and reproduce every merge/rank explanation.
-- Shipped locally: checked-in SQLite/FTS5 migration; validated deterministic NDJSON importer; source-record-level refresh safety; failed-refresh audit; local search explanations; complete deterministic JSON/CSV exports; loopback read service; cursor-exhausting query-snapshot builder with canonical deduplication and honest incomplete-run reports; fixture and regression suite. Remaining: reviewed full-catalogue source importers/dumps, tombstones/freshness UI, deployment storage and primary-read cutover with live fallback.
+- Shipped locally: checked-in SQLite/FTS5 migration; validated deterministic NDJSON importer; source-record-level refresh safety; failed-refresh audit; local search explanations; complete deterministic JSON/CSV exports; loopback read service; cursor-exhausting query-snapshot builder with canonical deduplication and honest incomplete-run reports; Project Gutenberg weekly CSV ingestion; DOAB OAI-PMH harvesting with raw-page checksums, opaque-token exhaustion and separate metadata/book-licence evidence; fixture, live-smoke and regression verification. Remaining: other reviewed source dumps/importers, tombstones/freshness UI, deployment storage and primary-read cutover with live fallback.
 
 ### LL-018 · Source expansion programme (v0.2)
 
