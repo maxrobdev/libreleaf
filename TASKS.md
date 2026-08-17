@@ -322,14 +322,15 @@ Every substantive product request from the build conversation is represented bel
 
 ### LL-017 · Open resolver index (v0.2)
 
-- Status: next version after current deployment
-- Owner: unclaimed
+- Status: in progress; open local reference index complete, scheduled production cutover pending
+- Owner: root agent
 - Replace latency-sensitive live fan-out as the primary path with a scheduled, source-attributed canonical-work index.
 - Use an open schema, checked-in migrations, reproducible importers, documented retention, and full JSON/CSV export. The complete stack must run without Netlify and without a proprietary hosted database.
 - Keep every raw source identifier, fetch timestamp, licence/rights statement, jurisdiction, offer URL, and canonical merge decision auditable. Never overwrite source claims with a synthetic global rights flag.
 - Use live adapters for refresh and availability checks, not as the only copy of catalogue metadata. Failed refreshes keep the last known record with visible freshness.
 - Evaluate PostgreSQL full-text search plus a replaceable optional search engine; do not make ranking dependent on a closed model or vendor-only feature.
 - Acceptance: a clean self-hosted install can ingest fixtures, build the canonical index, search locally, export its data, and reproduce every merge/rank explanation.
+- Shipped locally: checked-in SQLite/FTS5 migration; validated deterministic NDJSON importer; source-record-level refresh safety; failed-refresh audit; local search explanations; complete deterministic JSON/CSV exports; fixture and regression suite. Remaining: scheduled full-source snapshot importers, reviewed tombstones/freshness UI, deployment storage and primary-read cutover with live fallback.
 
 ### LL-018 · Source expansion programme (v0.2)
 

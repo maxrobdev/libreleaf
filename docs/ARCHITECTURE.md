@@ -32,6 +32,12 @@ An offer can be source-assessed public domain, openly licensed, source-policy fr
 
 `npm run build` produces the vinext server build used by rendering tests. `npm run build:netlify` produces the multi-page SPA deployment in `dist/netlify`. `npm run check` is the CI gate.
 
+## Open resolver index
+
+`db/resolver/migrations/` and `lib/resolver-index/` contain the open local reference index. It separates canonical works, original source records, access offers, source-specific rights statements and merge decisions. The checked-in NDJSON fixture can build a local SQLite/FTS5 index, search it and export every table as JSON or CSV without Netlify or a hosted database. See [RESOLVER_INDEX.md](RESOLVER_INDEX.md).
+
+This is not yet the production primary read path. Live source adapters remain active while scheduled imports, freshness and source-specific tombstone policies are completed. The index is designed to become the primary catalogue layer without removing live refresh and availability checks.
+
 ## State and caching
 
-Saved book IDs remain in browser `localStorage`; there is no account database. Search and list responses use CDN caching with stale-while-revalidate. Edition responses use a longer cache because work editions change less often. Search also keeps a bounded, per-isolate cache of successful source pages for failure-only stale fallback and a short per-source circuit after repeated failures. Stale pages are explicitly labelled and do not advance their source cursor. Client search caching is bounded; partial responses expire quickly and revalidate. Source failures remain isolated and are never presented as fresh success.
+Saved book IDs remain in browser `localStorage`; there is no user-account database. Search and list responses use CDN caching with stale-while-revalidate. Edition responses use a longer cache because work editions change less often. Search also keeps a bounded, per-isolate cache of successful source pages for failure-only stale fallback and a short per-source circuit after repeated failures. Stale pages are explicitly labelled and do not advance their source cursor. Client search caching is bounded; partial responses expire quickly and revalidate. Source failures remain isolated and are never presented as fresh success.

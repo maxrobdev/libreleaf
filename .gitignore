@@ -40,6 +40,11 @@ yarn-error.log*
 /work/
 *.tsbuildinfo
 
+# Local resolver indexes. Rebuild them from checked-in fixtures/importers.
+/data/resolver-index/
+*.sqlite-wal
+*.sqlite-shm
+
 # Local Netlify folder
 .netlify
 deno.lock

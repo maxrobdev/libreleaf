@@ -1,0 +1,174 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { parseIndexNdjson, ResolverIndex, validateIndexEntry } from "../lib/resolver-index/database.ts";
+import { resolveIndexHttpRequest } from "../lib/resolver-index/server.ts";
+
+const fixtureText = readFileSync(new URL("../fixtures/resolver-index/sample.ndjson", import.meta.url), "utf8");
+const fixtureEntries = parseIndexNdjson(fixtureText);
+
+function freshIndex() {
+  return new ResolverIndex(":memory:");
+}
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+test("a clean index ingests fixtures and resolves one canonical multi-source work", () => {
+  const index = freshIndex();
+  try {
+    const run = index.ingest(fixtureEntries, "checked-in-fixture");
+    assert.equal(run.recordCount, 2);
+
+    const result = index.search("Frankenstein", { region: "GB" });
+    assert.equal(result.total, 1);
+    assert.equal(result.books.length, 1);
+    const [book] = result.books;
+    assert.equal(book.clusterConfidence, "exact");
+    assert.deepEqual(book.sourceRecords.map((record) => record.source), ["LibriVox", "Project Gutenberg"]);
+    assert.deepEqual(book.offers.map((offer) => offer.access), ["listen", "download"]);
+    assert.equal(book.offers.every((offer) => offer.rights?.jurisdiction === "United States"), true);
+    assert.match(book.indexRanking.reasons.join(" "), /2 retained source records/);
+    assert.equal(book.indexProvenance.length, 2);
+    assert.equal(book.indexProvenance.every((record) => record.merge.method === "exact-title-primary-author"), true);
+    assert.equal(book.indexProvenance.every((record) => record.merge.evidence.length === 2), true);
+    assert.match(result.explanation, /SQLite FTS5 BM25/);
+
+    const snapshot = index.exportSnapshot();
+    assert.equal(snapshot.sourceRecords.length, 3);
+    assert.equal(snapshot.offers.length, 3);
+    assert.equal(snapshot.mergeDecisions.length, 3);
+    const decisions = snapshot.mergeDecisions.filter((decision) => decision.canonical_id === book.canonicalId);
+    assert.equal(decisions.length, 2);
+    assert.equal(decisions.every((decision) => decision.method === "exact-title-primary-author"), true);
+    assert.equal(decisions.every((decision) => String(decision.evidence_json).includes("mary wollstonecraft shelley")), true);
+  } finally {
+    index.close();
+  }
+});
+
+test("subject terms are searchable without changing the work metadata", () => {
+  const index = freshIndex();
+  try {
+    index.ingest(fixtureEntries, "checked-in-fixture");
+    const result = index.search("mental health");
+    assert.equal(result.total, 1);
+    assert.equal(result.books[0]?.title, "The Yellow Wallpaper");
+  } finally {
+    index.close();
+  }
+});
+
+test("older refreshes cannot erase newer source records", () => {
+  const index = freshIndex();
+  try {
+    index.ingest(fixtureEntries, "newer-fixture");
+    const older = clone(fixtureEntries[0]);
+    older.fetchedAt = "2025-08-17T00:00:00.000Z";
+    older.work.sourceRecords[0]!.offers[0]!.url = "https://www.gutenberg.org/older.epub";
+    index.ingest([older], "older-fixture");
+
+    const result = index.search("Frankenstein");
+    assert.equal(result.books[0]?.offers.some((offer) => offer.url.endsWith("older.epub")), false);
+    assert.equal(result.books[0]?.offers.some((offer) => offer.url.includes("84.epub3.images")), true);
+    assert.equal(result.books[0]?.indexedAt, "2026-08-17T00:00:00.000Z");
+  } finally {
+    index.close();
+  }
+});
+
+test("a newer source refresh replaces only that source's routes", () => {
+  const index = freshIndex();
+  try {
+    index.ingest(fixtureEntries, "initial-fixture");
+    const newer = clone(fixtureEntries[0]);
+    newer.fetchedAt = "2026-08-18T00:00:00.000Z";
+    newer.merge = {
+      method: "single-source",
+      algorithmVersion: "resolver-exact-v1",
+      evidence: ["Project Gutenberg source refresh; no cross-source merge recomputed."],
+    };
+    newer.work.sourceRecords = [clone(newer.work.sourceRecords[0]!)];
+    newer.work.sourceRecords[0]!.offers[0]!.url = "https://www.gutenberg.org/ebooks/84.epub.noimages";
+    index.ingest([newer], "gutenberg-refresh");
+
+    const [book] = index.search("Frankenstein").books;
+    assert.equal(book.offers.some((offer) => offer.source === "LibriVox"), true);
+    assert.equal(book.offers.some((offer) => offer.url.includes("84.epub.noimages")), true);
+    assert.equal(book.offers.some((offer) => offer.url.includes("84.epub3.images")), false);
+  } finally {
+    index.close();
+  }
+});
+
+test("failed refresh history keeps the last known searchable work", () => {
+  const index = freshIndex();
+  try {
+    index.ingest(fixtureEntries, "initial-fixture");
+    index.recordRefreshFailure("Open Library", "2026-08-18T00:00:00.000Z", "Upstream timeout");
+    assert.equal(index.search("Frankenstein").total, 1);
+    const failed = index.exportSnapshot().refreshRuns.find((run) => run.status === "failed");
+    assert.equal(failed?.source_label, "Open Library");
+    assert.equal(failed?.record_count, 0);
+  } finally {
+    index.close();
+  }
+});
+
+test("validation is atomic and rejects unsafe routes", () => {
+  const index = freshIndex();
+  try {
+    const unsafe = clone(fixtureEntries[0]);
+    unsafe.work.sourceRecords[0]!.offers[0]!.url = "file:///etc/passwd";
+    assert.throws(() => index.ingest([fixtureEntries[1], unsafe], "unsafe-fixture"), /HTTP or HTTPS/);
+    assert.equal(index.exportSnapshot().works.length, 0);
+    assert.throws(() => validateIndexEntry({ schemaVersion: 1 }), /fetchedAt|work/);
+  } finally {
+    index.close();
+  }
+});
+
+test("JSON and CSV exports are deterministic and complete", () => {
+  const first = freshIndex();
+  const second = freshIndex();
+  try {
+    first.ingest(fixtureEntries, "checked-in-fixture");
+    second.ingest(fixtureEntries, "checked-in-fixture");
+    assert.equal(first.exportJson(), second.exportJson());
+    const csv = first.exportCsv();
+    assert.deepEqual(Object.keys(csv), [
+      "works.csv",
+      "source-records.csv",
+      "offers.csv",
+      "merge-decisions.csv",
+      "refresh-runs.csv",
+    ]);
+    assert.match(csv["offers.csv"], /rights_status/);
+    assert.match(csv["merge-decisions.csv"], /algorithm_version/);
+    assert.match(csv["source-records.csv"], /fetched_at/);
+  } finally {
+    first.close();
+    second.close();
+  }
+});
+
+test("the self-hosted service exposes bounded read-only status and search", () => {
+  const index = freshIndex();
+  try {
+    index.ingest(fixtureEntries, "checked-in-fixture");
+    const status = resolveIndexHttpRequest(index, { method: "GET", url: "/v1/status" });
+    assert.equal(status.status, 200);
+    assert.equal((status.payload as Record<string, unknown>).works, 2);
+    assert.equal((status.payload as Record<string, unknown>).activeOffers, 3);
+
+    const search = resolveIndexHttpRequest(index, { method: "GET", url: "/v1/search?q=Frankenstein&region=GB&limit=1" });
+    const payload = search.payload as { books: Array<{ sourceRecords: unknown[] }> };
+    assert.equal(payload.books.length, 1);
+    assert.equal(payload.books[0]?.sourceRecords.length, 2);
+    assert.equal(resolveIndexHttpRequest(index, { method: "POST", url: "/v1/search" }).status, 405);
+    assert.equal(resolveIndexHttpRequest(index, { method: "GET", url: "/v1/search?q=x&limit=999" }).status, 400);
+  } finally {
+    index.close();
+  }
+});
