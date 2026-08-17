@@ -10,6 +10,7 @@ const catalogueSources = [
   "Wikisource",
   "DOAB",
   "Library of Congress",
+  "LibriVox",
 ] as const satisfies readonly CatalogueSource[];
 
 export type WorkIdentity = {

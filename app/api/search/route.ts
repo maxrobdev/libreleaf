@@ -1,5 +1,6 @@
 import { doabAdapter } from "../../../lib/sources/doab.ts";
 import { libraryOfCongressAdapter } from "../../../lib/sources/library-of-congress.ts";
+import { librivoxAdapter } from "../../../lib/sources/librivox.ts";
 import type {
   Access,
   CatalogueSource,
@@ -33,7 +34,7 @@ type OpenLibraryDoc = {
 };
 
 type SourceStatus = "ok" | "stale" | "deferred" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
-type SourceKey = "gutenberg" | "openLibrary" | "wikisource" | "doab" | "libraryOfCongress";
+type SourceKey = "gutenberg" | "openLibrary" | "wikisource" | "doab" | "libraryOfCongress" | "librivox";
 
 type CursorState = {
   v: 1;
@@ -52,6 +53,9 @@ type CursorState = {
   l: number;
   ld: boolean;
   lt: number | null;
+  a: number;
+  ad: boolean;
+  at: number | null;
 };
 
 type GutendexPage = {
@@ -91,6 +95,7 @@ type SourceCircuit = {
 const GUTENDEX_PAGE_SIZE = 32;
 const OPEN_LIBRARY_PAGE_SIZE = 32;
 const LIBRARY_OF_CONGRESS_PAGE_SIZE = 20;
+const LIBRIVOX_PAGE_SIZE = 20;
 const MAX_PAGE = 10_000;
 const MAX_OPEN_LIBRARY_OFFSET = (MAX_PAGE - 1) * OPEN_LIBRARY_PAGE_SIZE;
 const MAX_ADAPTER_OFFSET = 500_000;
@@ -183,7 +188,7 @@ function rightsRegion(value: string | null): RightsRegion {
 
 function initialCursor(pageValue: string | null): CursorState {
   if (pageValue === null || pageValue === "") {
-    return { v: 1, g: 1, o: 0, gd: false, od: false, gt: null, ot: null, w: 0, d: 0, wd: false, dd: false, wt: null, dt: null, l: 0, ld: false, lt: null };
+    return { v: 1, g: 1, o: 0, gd: false, od: false, gt: null, ot: null, w: 0, d: 0, wd: false, dd: false, wt: null, dt: null, l: 0, ld: false, lt: null, a: 0, ad: false, at: null };
   }
   if (!/^\d{1,5}$/.test(pageValue)) throw new SearchRequestError("Invalid page.");
   const page = Number(pageValue);
@@ -205,6 +210,9 @@ function initialCursor(pageValue: string | null): CursorState {
     l: (page - 1) * LIBRARY_OF_CONGRESS_PAGE_SIZE,
     ld: false,
     lt: null,
+    a: (page - 1) * LIBRIVOX_PAGE_SIZE,
+    ad: false,
+    at: null,
   };
 }
 
@@ -236,10 +244,12 @@ function decodeCursor(value: string): CursorState {
     const w = legacy.w ?? 0;
     const d = legacy.d ?? 0;
     const l = legacy.l ?? 0;
+    const a = legacy.a ?? 0;
     if (
       !boundedInteger(w, 0, MAX_ADAPTER_OFFSET)
       || !boundedInteger(d, 0, MAX_ADAPTER_OFFSET)
       || !boundedInteger(l, 0, MAX_ADAPTER_OFFSET)
+      || !boundedInteger(a, 0, MAX_ADAPTER_OFFSET)
     ) {
       throw new Error("Invalid adapter cursor state.");
     }
@@ -254,6 +264,9 @@ function decodeCursor(value: string): CursorState {
       l,
       ld: typeof legacy.ld === "boolean" ? legacy.ld : false,
       lt: nullableTotal(legacy.lt) ? legacy.lt : null,
+      a,
+      ad: typeof legacy.ad === "boolean" ? legacy.ad : false,
+      at: nullableTotal(legacy.at) ? legacy.at : null,
     } as CursorState;
   } catch {
     throw new SearchRequestError("Invalid cursor.");
@@ -707,7 +720,7 @@ function mergeBooks(primary: NormalisedBook, secondary: NormalisedBook): Normali
       ? [{ label: offer.format, url: offer.url }]
       : []),
     (format) => `${format.label}|${format.url}`,
-  ).sort((a, b) => formatRanks[a.label] - formatRanks[b.label]);
+  ).sort((a, b) => (formatRanks[a.label] ?? 99) - (formatRanks[b.label] ?? 99));
   const access = offers.reduce<Access>(
     (best, offer) => accessRanks[offer.access] < accessRanks[best] ? offer.access : best,
     primary.access,
@@ -762,6 +775,10 @@ function applyRightsContext(books: NormalisedBook[], region: RightsRegion) {
   });
 }
 
+function hasAccess(book: NormalisedBook, access: Access) {
+  return book.access === access || book.offers.some((offer) => offer.access === access);
+}
+
 function rightsContext(region: RightsRegion) {
   const labels: Record<RightsRegion, string> = {
     GB: "United Kingdom",
@@ -799,6 +816,7 @@ function advanceCursor(
   wikisourceResult: PromiseSettledResult<SourcePage> | undefined,
   doabResult: PromiseSettledResult<SourcePage> | undefined,
   libraryOfCongressResult: PromiseSettledResult<SourcePage> | undefined,
+  librivoxResult: PromiseSettledResult<SourcePage> | undefined,
   statuses: Record<SourceKey, SourceStatus>,
 ) {
   const next = { ...current };
@@ -827,6 +845,11 @@ function advanceCursor(
     next.lt = libraryOfCongressResult.value.total ?? next.lt;
     next.ld = !libraryOfCongressResult.value.hasMore || current.l >= MAX_ADAPTER_OFFSET;
     if (!next.ld) next.l = current.l + libraryOfCongressResult.value.advanceBy;
+  }
+  if (librivoxResult?.status === "fulfilled" && statuses.librivox === "ok") {
+    next.at = librivoxResult.value.total ?? next.at;
+    next.ad = !librivoxResult.value.hasMore || current.a >= MAX_ADAPTER_OFFSET;
+    if (!next.ad) next.a = current.a + librivoxResult.value.advanceBy;
   }
 
   return next;
@@ -926,7 +949,15 @@ async function handleSearchRequest(request: Request) {
         () => libraryOfCongressAdapter.search({ query, by, offset: cursor.l, region }, fetchWithinBudget),
         health,
       );
-    const pending = [gutenbergPromise, libraryPromise, wikisourcePromise, doabPromise, libraryOfCongressPromise]
+    const librivoxPromise = cursor.ad
+      ? undefined
+      : reliableSource(
+        "librivox",
+        sourceCacheKey("librivox", query, by, region, cursor.a),
+        () => librivoxAdapter.search({ query, by, offset: cursor.a, region }, fetchWithinBudget),
+        health,
+      );
+    const pending = [gutenbergPromise, libraryPromise, wikisourcePromise, doabPromise, libraryOfCongressPromise, librivoxPromise]
       .filter(Boolean) as Array<Promise<GutendexPage | OpenLibraryPage | SourcePage>>;
     const settled = await Promise.allSettled(pending);
     let settledIndex = 0;
@@ -943,6 +974,9 @@ async function handleSearchRequest(request: Request) {
       ? settled[settledIndex++] as PromiseSettledResult<SourcePage>
       : undefined;
     const libraryOfCongressResult = libraryOfCongressPromise
+      ? settled[settledIndex++] as PromiseSettledResult<SourcePage>
+      : undefined;
+    const librivoxResult = librivoxPromise
       ? settled[settledIndex] as PromiseSettledResult<SourcePage>
       : undefined;
 
@@ -952,6 +986,7 @@ async function handleSearchRequest(request: Request) {
       wikisource: sourceStatus(cursor.wd, wikisourceResult, health.wikisource),
       doab: sourceStatus(cursor.dd, doabResult, health.doab),
       libraryOfCongress: sourceStatus(cursor.ld, libraryOfCongressResult, health.libraryOfCongress),
+      librivox: sourceStatus(cursor.ad, librivoxResult, health.librivox),
     };
     const sourceHealth: Record<SourceKey, SourceHealth> = {
       gutenberg: sourceHealthFor(cursor.gd, sources.gutenberg, health.gutenberg),
@@ -959,6 +994,7 @@ async function handleSearchRequest(request: Request) {
       wikisource: sourceHealthFor(cursor.wd, sources.wikisource, health.wikisource),
       doab: sourceHealthFor(cursor.dd, sources.doab, health.doab),
       libraryOfCongress: sourceHealthFor(cursor.ld, sources.libraryOfCongress, health.libraryOfCongress),
+      librivox: sourceHealthFor(cursor.ad, sources.librivox, health.librivox),
     };
 
     const runningNodeTest = typeof process !== "undefined" && Boolean(process.env.NODE_TEST_CONTEXT);
@@ -972,6 +1008,7 @@ async function handleSearchRequest(request: Request) {
       wikisourceResult,
       doabResult,
       libraryOfCongressResult,
+      librivoxResult,
     ].filter(Boolean);
     if (attempted.length && attempted.every((result) => result?.status === "rejected")) {
       return Response.json(
@@ -1010,8 +1047,13 @@ async function handleSearchRequest(request: Request) {
       "Library of Congress",
       cursor.l + 1,
     );
+    const librivoxBooks = annotateSourceRanks(
+      librivoxResult?.status === "fulfilled" ? librivoxResult.value.books : [],
+      "LibriVox",
+      cursor.a + 1,
+    );
     const books = addCanonicalIdentity(applyRightsContext(rankBooks(
-      clusterBooks([...gutenbergBooks, ...libraryBooks, ...wikisourceBooks, ...doabBooks, ...libraryOfCongressBooks]),
+      clusterBooks([...gutenbergBooks, ...libraryBooks, ...wikisourceBooks, ...doabBooks, ...libraryOfCongressBooks, ...librivoxBooks]),
       query,
       by,
     ), region));
@@ -1022,9 +1064,10 @@ async function handleSearchRequest(request: Request) {
       wikisourceResult,
       doabResult,
       libraryOfCongressResult,
+      librivoxResult,
       sources,
     );
-    const nextCursor = next.gd && next.od && next.wd && next.dd && next.ld ? null : encodeCursor(next);
+    const nextCursor = next.gd && next.od && next.wd && next.dd && next.ld && next.ad ? null : encodeCursor(next);
 
     const partial = Object.values(sources).some((status) => status !== "ok" && status !== "exhausted");
 
@@ -1033,11 +1076,11 @@ async function handleSearchRequest(request: Request) {
       books,
       counts: {
         total: books.length,
-        download: books.filter((book) => book.access === "download").length,
-        borrow: books.filter((book) => book.access === "borrow").length,
-        preview: books.filter((book) => book.access === "preview").length,
-        read: books.filter((book) => book.access === "read").length,
-        listen: books.filter((book) => book.access === "listen").length,
+        download: books.filter((book) => hasAccess(book, "download")).length,
+        borrow: books.filter((book) => hasAccess(book, "borrow")).length,
+        preview: books.filter((book) => hasAccess(book, "preview")).length,
+        read: books.filter((book) => hasAccess(book, "read")).length,
+        listen: books.filter((book) => hasAccess(book, "listen")).length,
       },
       nextCursor,
       upstreamTotals: {
@@ -1046,6 +1089,7 @@ async function handleSearchRequest(request: Request) {
         wikisource: next.wt,
         doab: next.dt,
         libraryOfCongress: next.lt,
+        librivox: next.at,
       },
       partial,
       sources,

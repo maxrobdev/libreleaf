@@ -17,7 +17,7 @@ const DEFAULT_TOOL_RESULTS = 10;
 const searchBySchema = z.enum(["q", "title", "author", "subject"]);
 const rightsRegionSchema = z.enum(["GB", "US", "GLOBAL"]);
 const accessSchema = z.enum(["download", "borrow", "preview", "read", "listen"]);
-const catalogueSourceSchema = z.enum(["Project Gutenberg", "Open Library", "Wikisource", "DOAB", "Library of Congress"]);
+const catalogueSourceSchema = z.enum(["Project Gutenberg", "Open Library", "Wikisource", "DOAB", "Library of Congress", "LibriVox"]);
 
 const formatSchema = z.object({
   label: z.string(),
@@ -82,11 +82,12 @@ const bookSchema = z.object({
 });
 
 const sourceStatusSchema = z.object({
-  gutenberg: z.enum(["ok", "unavailable", "timeout", "rate-limited", "exhausted"]),
-  openLibrary: z.enum(["ok", "unavailable", "timeout", "rate-limited", "exhausted"]),
-  wikisource: z.enum(["ok", "unavailable", "timeout", "rate-limited", "exhausted"]),
-  doab: z.enum(["ok", "unavailable", "timeout", "rate-limited", "exhausted"]),
-  libraryOfCongress: z.enum(["ok", "unavailable", "timeout", "rate-limited", "exhausted"]),
+  gutenberg: z.enum(["ok", "stale", "deferred", "unavailable", "timeout", "rate-limited", "exhausted"]),
+  openLibrary: z.enum(["ok", "stale", "deferred", "unavailable", "timeout", "rate-limited", "exhausted"]),
+  wikisource: z.enum(["ok", "stale", "deferred", "unavailable", "timeout", "rate-limited", "exhausted"]),
+  doab: z.enum(["ok", "stale", "deferred", "unavailable", "timeout", "rate-limited", "exhausted"]),
+  libraryOfCongress: z.enum(["ok", "stale", "deferred", "unavailable", "timeout", "rate-limited", "exhausted"]),
+  librivox: z.enum(["ok", "stale", "deferred", "unavailable", "timeout", "rate-limited", "exhausted"]),
 });
 
 const searchResultSchema = z.object({
@@ -172,9 +173,11 @@ function allowedSourceUrl(value: unknown, kind: "catalogue" | "download"): strin
     const isOapen = url.hostname === "oapen.org" || url.hostname.endsWith(".oapen.org");
     const isDoi = url.hostname === "doi.org";
     const isLibraryOfCongress = url.hostname === "loc.gov" || url.hostname.endsWith(".loc.gov");
+    const isLibrivox = url.hostname === "librivox.org" || url.hostname.endsWith(".librivox.org");
+    const isInternetArchive = url.hostname === "archive.org" || url.hostname.endsWith(".archive.org");
     const allowed = kind === "download"
-      ? isGutenberg || isDoab || isOapen || isLibraryOfCongress
-      : isGutenberg || isOpenLibrary || isWikisource || isDoab || isOapen || isDoi || isLibraryOfCongress;
+      ? isGutenberg || isDoab || isOapen || isLibraryOfCongress || isLibrivox || isInternetArchive
+      : isGutenberg || isOpenLibrary || isWikisource || isDoab || isOapen || isDoi || isLibraryOfCongress || isLibrivox || isInternetArchive;
     return allowed ? url.toString() : undefined;
   } catch {
     return undefined;
@@ -310,7 +313,7 @@ export async function searchBooks(
   const sourceParse = sourceStatusSchema.safeParse(payload.sources);
   const sources = sourceParse.success
     ? sourceParse.data
-    : { gutenberg: "unavailable" as const, openLibrary: "unavailable" as const, wikisource: "unavailable" as const, doab: "unavailable" as const, libraryOfCongress: "unavailable" as const };
+    : { gutenberg: "unavailable" as const, openLibrary: "unavailable" as const, wikisource: "unavailable" as const, doab: "unavailable" as const, libraryOfCongress: "unavailable" as const, librivox: "unavailable" as const };
   const contextParse = searchResultSchema.shape.rightsContext.safeParse(payload.rightsContext);
   const rankedBooks = books.some((book) => book.ranking)
     ? [...books].sort((left, right) => (right.ranking?.score ?? 0) - (left.ranking?.score ?? 0))
@@ -322,7 +325,7 @@ export async function searchBooks(
     rightsContext: contextParse.success ? contextParse.data : { region: input.region ?? "GB", label: input.region === "US" ? "United States" : input.region === "GLOBAL" ? "Global / location not specified" : "United Kingdom", note: "Check local law and edition-specific terms." },
     returned: Math.min(input.limit, books.length),
     available: books.length,
-    partial: [sources.gutenberg, sources.openLibrary, sources.wikisource, sources.doab, sources.libraryOfCongress]
+    partial: [sources.gutenberg, sources.openLibrary, sources.wikisource, sources.doab, sources.libraryOfCongress, sources.librivox]
       .some((status) => status !== "ok" && status !== "exhausted"),
     sources,
     books: rankedBooks.slice(0, input.limit),

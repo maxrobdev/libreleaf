@@ -183,13 +183,14 @@ function mergeBooks(current: Book[], incoming: Book[]) {
 }
 
 function countsFor(books: Book[]) {
+  const hasAccess = (book: Book, access: Book["access"]) => book.access === access || (book.offers ?? []).some((offer) => offer.access === access);
   return {
     total: books.length,
-    download: books.filter((book) => book.access === "download").length,
-    borrow: books.filter((book) => book.access === "borrow").length,
-    preview: books.filter((book) => book.access === "preview").length,
-    read: books.filter((book) => book.access === "read").length,
-    listen: books.filter((book) => book.access === "listen").length,
+    download: books.filter((book) => hasAccess(book, "download")).length,
+    borrow: books.filter((book) => hasAccess(book, "borrow")).length,
+    preview: books.filter((book) => hasAccess(book, "preview")).length,
+    read: books.filter((book) => hasAccess(book, "read")).length,
+    listen: books.filter((book) => hasAccess(book, "listen")).length,
   };
 }
 
@@ -372,7 +373,7 @@ export default function SearchResultsPage() {
     let books = [...data.books];
     if (filter !== "all") books = filter === "saved"
       ? books.filter((book) => saved.includes(savedKey(book)) || saved.includes(book.id))
-      : books.filter((book) => book.access === filter);
+      : books.filter((book) => book.access === filter || (book.offers ?? []).some((offer) => offer.access === filter));
     if (source !== "all") books = books.filter((book) => book.source === source || book.sourceRecords?.some((record) => record.source === source));
     if (format !== "all") books = books.filter((book) => bookFormats(book).includes(format));
     if (sort === "relevance") books.sort((a, b) => (b.ranking?.score ?? 0) - (a.ranking?.score ?? 0));
@@ -462,6 +463,7 @@ export default function SearchResultsPage() {
         sourceIssue("Wikisource", data.sources.wikisource),
         sourceIssue("DOAB", data.sources.doab),
         sourceIssue("Library of Congress", data.sources.libraryOfCongress),
+        sourceIssue("LibriVox", data.sources.librivox),
       ].filter(Boolean)
     : [];
 
@@ -553,7 +555,7 @@ export default function SearchResultsPage() {
           <footer>
             <a className="brand" href="#top"><span>libre</span>leaf</a>
             <p>Open-source book search.</p>
-            <p>Project Gutenberg, Open Library, Wikisource, DOAB and the Library of Congress.</p>
+            <p>Project Gutenberg, Open Library, Wikisource, DOAB, the Library of Congress and LibriVox.</p>
           </footer>
         </>
       ) : (
@@ -575,11 +577,12 @@ export default function SearchResultsPage() {
           <button className={filter === "borrow" ? "active" : ""} onClick={() => selectFilter("borrow")}>Borrow <span>{data?.counts.borrow ?? 0}</span></button>
           <button className={filter === "preview" ? "active" : ""} onClick={() => selectFilter("preview")}>Preview <span>{data?.counts.preview ?? 0}</span></button>
           <button className={filter === "read" ? "active" : ""} onClick={() => selectFilter("read")}>Read online <span>{data?.counts.read ?? 0}</span></button>
+          <button className={filter === "listen" ? "active" : ""} onClick={() => selectFilter("listen")}>Listen <span>{data?.counts.listen ?? 0}</span></button>
           <button className={filter === "saved" ? "active" : ""} onClick={() => selectFilter("saved")}>Saved <span>{saved.length}</span></button>
         </div>
 
         <div className="result-tools">
-          <label>Source<select value={source} onChange={(event) => { setSource(event.target.value as typeof source); setVisibleCount(RESULTS_BATCH_SIZE); }}><option value="all">All catalogues</option><option value="Project Gutenberg">Project Gutenberg</option><option value="Open Library">Open Library</option><option value="Wikisource">Wikisource</option><option value="DOAB">DOAB</option><option value="Library of Congress">Library of Congress</option></select></label>
+          <label>Source<select value={source} onChange={(event) => { setSource(event.target.value as typeof source); setVisibleCount(RESULTS_BATCH_SIZE); }}><option value="all">All catalogues</option><option value="Project Gutenberg">Project Gutenberg</option><option value="Open Library">Open Library</option><option value="Wikisource">Wikisource</option><option value="DOAB">DOAB</option><option value="Library of Congress">Library of Congress</option><option value="LibriVox">LibriVox</option></select></label>
           <label>Format<select value={format} onChange={(event) => { setFormat(event.target.value); setVisibleCount(RESULTS_BATCH_SIZE); }}><option value="all">Every format</option>{availableFormats.map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
           <label>Sort<select value={sort} onChange={(event) => { setSort(event.target.value as Sort); setVisibleCount(RESULTS_BATCH_SIZE); }}><option value="relevance">Best match</option><option value="title">Title A–Z</option><option value="oldest">Oldest first</option><option value="newest">Newest first</option></select></label>
           {hasFilters ? <button onClick={() => { setFilter("all"); setSource("all"); setFormat("all"); setSort("relevance"); setVisibleCount(RESULTS_BATCH_SIZE); writeLocation(location.query, location.by, location.region, false, location.workId); }}>Reset filters</button> : null}

@@ -100,7 +100,7 @@ test("search and fetch expose stable citation-ready work records", async () => {
           offers: [offer],
         }],
       }],
-      sources: { gutenberg: "ok", openLibrary: "timeout", wikisource: "exhausted", doab: "exhausted", libraryOfCongress: "exhausted" },
+      sources: { gutenberg: "ok", openLibrary: "timeout", wikisource: "exhausted", doab: "exhausted", libraryOfCongress: "exhausted", librivox: "exhausted" },
       rightsContext: {
         region: "GB",
         label: "United Kingdom",
@@ -199,6 +199,18 @@ test("resolve_access returns one canonical match, all offers, and an auditable r
         applicability: "verified",
       },
     };
+    const librivoxOffer = {
+      source: "LibriVox",
+      access: "listen",
+      label: "Listen on LibriVox",
+      url: "https://librivox.org/pride-and-prejudice-by-jane-austen/",
+      rights: {
+        status: "source-assessed-public-domain",
+        jurisdiction: "US",
+        note: "LibriVox assesses this recording as public domain in the United States.",
+        applicability: "verified",
+      },
+    };
 
     return Response.json({
       books: [{
@@ -213,7 +225,7 @@ test("resolve_access returns one canonical match, all offers, and an auditable r
         workKey: "/works/OL66554W",
         clusterConfidence: "exact",
         why: ["Exact normalized title and primary-author match across catalogue records."],
-        offers: [gutenbergOffer, libraryOffer, doabOffer],
+        offers: [gutenbergOffer, libraryOffer, doabOffer, librivoxOffer],
         sourceRecords: [{
           source: "Project Gutenberg",
           recordId: "1342",
@@ -230,6 +242,11 @@ test("resolve_access returns one canonical match, all offers, and an auditable r
           recordId: "20.500.12657/1",
           detailsUrl: "https://directory.doabooks.org/handle/20.500.12657/1",
           offers: [doabOffer],
+        }, {
+          source: "LibriVox",
+          recordId: "456",
+          detailsUrl: "https://librivox.org/pride-and-prejudice-by-jane-austen/",
+          offers: [librivoxOffer],
         }],
       }, {
         id: "openlibrary-/works/OL123W",
@@ -246,7 +263,7 @@ test("resolve_access returns one canonical match, all offers, and an auditable r
           url: "https://openlibrary.org/works/OL123W",
         }],
       }],
-      sources: { gutenberg: "ok", openLibrary: "ok", wikisource: "exhausted", doab: "ok", libraryOfCongress: "exhausted" },
+      sources: { gutenberg: "ok", openLibrary: "ok", wikisource: "exhausted", doab: "ok", libraryOfCongress: "exhausted", librivox: "exhausted" },
       rightsContext: {
         region: "US",
         label: "United States",
@@ -281,9 +298,9 @@ test("resolve_access returns one canonical match, all offers, and an auditable r
   assert.equal(result.ranking.quality, "exact");
   assert.equal(result.ranking.candidatesConsidered, 2);
   assert.match(result.ranking.explanation.join(" "), /Exact normalized author match/);
-  assert.deepEqual(result.offers.map((offer) => offer.source), ["Project Gutenberg", "Open Library", "DOAB"]);
+  assert.deepEqual(result.offers.map((offer) => offer.source), ["Project Gutenberg", "Open Library", "DOAB", "LibriVox"]);
   assert.equal(result.offers[0]?.rights?.applicability, "verified");
-  assert.equal(result.canonicalMatch?.sourceRecords?.length, 3);
+  assert.equal(result.canonicalMatch?.sourceRecords?.length, 4);
 });
 
 test("search_books returns bounded normalized records without live network", async (context) => {
@@ -337,6 +354,7 @@ test("search_books returns bounded normalized records without live network", asy
     }
     if (url.hostname === "directory.doabooks.org") return Response.json([]);
     if (url.hostname === "www.loc.gov") return Response.json({ pagination: { current: 1, total: 1, of: 0 }, results: [] });
+    if (url.hostname === "librivox.org") return Response.json({ books: [] });
     throw new Error(`Unexpected request to ${url}`);
   };
 
@@ -351,7 +369,7 @@ test("search_books returns bounded normalized records without live network", asy
   });
 
   assert.equal(response.status, 200);
-  assert.equal(fetchCount, 5);
+  assert.equal(fetchCount, 6);
   const payload = await response.json() as {
     result: {
       isError?: boolean;

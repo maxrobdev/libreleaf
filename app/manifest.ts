@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "LibreLeaf — Open-Access Book Resolver",
     short_name: "LibreLeaf",
     description:
-      "Resolve books across open catalogues and compare source-labelled download, read, borrow and preview routes.",
+      "Resolve books across open catalogues and compare source-labelled download, read, listen, borrow and preview routes.",
     start_url: "/",
     display: "standalone",
     background_color: "#f7f4ed",

@@ -9,7 +9,7 @@ export type FormatLink = {
   url: string;
 };
 
-export type CatalogueSource = "Project Gutenberg" | "Open Library" | "Wikisource" | "DOAB" | "Library of Congress";
+export type CatalogueSource = "Project Gutenberg" | "Open Library" | "Wikisource" | "DOAB" | "Library of Congress" | "LibriVox";
 export type AccessType = "download" | "borrow" | "preview" | "read" | "listen";
 
 export type AccessOffer = {
@@ -77,6 +77,7 @@ export type SearchPayload = {
     wikisource?: number | null;
     doab?: number | null;
     libraryOfCongress?: number | null;
+    librivox?: number | null;
   };
   sources?: {
     gutenberg: SourceStatus;
@@ -84,6 +85,7 @@ export type SearchPayload = {
     wikisource?: SourceStatus;
     doab?: SourceStatus;
     libraryOfCongress?: SourceStatus;
+    librivox?: SourceStatus;
   };
   sourceHealth?: Record<string, {
     status: SourceStatus;
@@ -174,6 +176,7 @@ function catalogueSourceFor(value: string): CatalogueSource {
   if (value.includes("Wikisource")) return "Wikisource";
   if (value.includes("DOAB")) return "DOAB";
   if (value.includes("Library of Congress")) return "Library of Congress";
+  if (value.includes("LibriVox")) return "LibriVox";
   return "Open Library";
 }
 

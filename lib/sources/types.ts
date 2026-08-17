@@ -9,7 +9,8 @@ export type CatalogueSource =
   | "Open Library"
   | "Wikisource"
   | "DOAB"
-  | "Library of Congress";
+  | "Library of Congress"
+  | "LibriVox";
 
 export type Rights = {
   status:

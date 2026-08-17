@@ -49,6 +49,7 @@ test("uses one search-first interface for home and results", async () => {
   assert.match(card, /book-title-trigger/);
   assert.match(card, /closeOnEscape/);
   assert.match(card, /Library of Congress/);
+  assert.match(card, /LibriVox/);
   assert.match(card, /Load editions/);
   assert.match(card, /Permanent work link/);
   assert.match(card, /Show all \$\{routes\.length\} routes/);
@@ -68,5 +69,7 @@ test("uses one search-first interface for home and results", async () => {
   assert.match(results, /RRF_K = 60/);
   assert.match(results, /Load more/);
   assert.match(results, /Library of Congress/);
+  assert.match(results, /LibriVox/);
+  assert.match(results, />Listen </);
   assert.doesNotMatch(`${page}\n${card}\n${results}`, /Anna.?s Archive|LibGen|torrent/i);
 });

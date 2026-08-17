@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const siteUrl = await getSiteUrl();
   const title = "LibreLeaf | Open-Access Book Resolver UK";
   const description =
-    "Resolve books across open catalogues. Compare source-labelled download, read, borrow and preview routes with clear rights context for UK readers.";
+    "Resolve books across open catalogues. Compare source-labelled download, read, listen, borrow and preview routes with clear rights context for UK readers.";
 
   return {
     metadataBase: siteUrl,
@@ -38,6 +38,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "free classic ebooks",
       "Project Gutenberg search",
       "Open Library books",
+      "LibriVox audiobooks",
       "free EPUB books",
       "mobile book search",
     ],
@@ -122,7 +123,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         name: "LibreLeaf",
         url: siteUrl.href,
         description:
-          "Resolve a book across open catalogues and compare source-labelled download, read, borrow and preview routes.",
+          "Resolve a book across open catalogues and compare source-labelled download, read, listen, borrow and preview routes.",
         applicationCategory: "EducationalApplication",
         operatingSystem: "Any",
         browserRequirements: "Requires a modern web browser with JavaScript enabled.",

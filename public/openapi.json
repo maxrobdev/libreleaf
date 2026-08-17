@@ -104,7 +104,7 @@
     "schemas": {
       "Region": { "type": "string", "enum": ["GB", "US", "GLOBAL"], "default": "GB" },
       "Access": { "type": "string", "enum": ["download", "borrow", "preview", "read", "listen"] },
-      "SourceName": { "type": "string", "enum": ["Project Gutenberg", "Open Library", "Wikisource", "DOAB", "Library of Congress"] },
+      "SourceName": { "type": "string", "enum": ["Project Gutenberg", "Open Library", "Wikisource", "DOAB", "Library of Congress", "LibriVox"] },
       "SourceStatus": { "type": "string", "enum": ["ok", "exhausted", "stale", "deferred", "timeout", "rate-limited", "unavailable"] },
       "Rights": {
         "type": "object",

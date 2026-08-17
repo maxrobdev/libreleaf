@@ -20,7 +20,7 @@ first while avoiding title-only merges. Citation URLs select and open that exact
 work in the browser resolver.
 
 `search_books(query, search_by?, limit?, region?)` searches Project Gutenberg,
-Open Library, Wikisource, DOAB and the Library of Congress. `search_by` accepts `q`, `title`, `author`, or
+Open Library, Wikisource, DOAB, the Library of Congress and LibriVox. `search_by` accepts `q`, `title`, `author`, or
 `subject`; `limit` is bounded to 1–20 records. Results preserve download,
 borrow, preview, read and listen access types and include validated source URLs.
 
@@ -39,7 +39,7 @@ resolver already returns the underlying match reasons and ranking method.
 
 The focused tools accept `region` as `GB`, `US`, or `GLOBAL`. Region changes the rights
 context reported by sources; it does not make a legal determination. In
-particular, Project Gutenberg's public-domain assessment is US-specific unless
+particular, Project Gutenberg and LibriVox public-domain assessments are US-specific unless
 an offer supplies separate applicable rights metadata.
 
 The server has no authentication, user accounts, writes, or custom UI. It does
@@ -80,7 +80,7 @@ public website/support/privacy/terms URLs, domain verification, starter prompts,
 and documented positive and negative test cases. No OAuth is needed while the
 server remains public and read-only.
 
-The submission must describe all five sources accurately. LibreLeaf must never
+The submission must describe all six sources accurately. LibreLeaf must never
 label borrow, preview, read or listen records as downloads, and must not present
 a source-jurisdiction assessment as globally applicable.
 

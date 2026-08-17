@@ -3,7 +3,7 @@ import { decodeStableWorkId, workIdentityMatches } from "./work-identity.ts";
 
 export const MAX_WORK_RESOLUTION_PAGES = 3;
 
-export type ResolverSourceStatus = "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
+export type ResolverSourceStatus = "ok" | "stale" | "deferred" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
 
 export type ResolverSources = {
   gutenberg: ResolverSourceStatus;
@@ -11,6 +11,7 @@ export type ResolverSources = {
   wikisource: ResolverSourceStatus;
   doab: ResolverSourceStatus;
   libraryOfCongress: ResolverSourceStatus;
+  librivox: ResolverSourceStatus;
 };
 
 export type ResolverRightsContext = {
@@ -41,7 +42,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function sourceStatus(value: unknown): value is ResolverSourceStatus {
-  return value === "ok" || value === "unavailable" || value === "timeout" || value === "rate-limited" || value === "exhausted";
+  return value === "ok" || value === "stale" || value === "deferred" || value === "unavailable" || value === "timeout" || value === "rate-limited" || value === "exhausted";
 }
 
 function parseSources(value: unknown): ResolverSources | null {
@@ -52,6 +53,7 @@ function parseSources(value: unknown): ResolverSources | null {
     || !sourceStatus(value.wikisource)
     || !sourceStatus(value.doab)
     || !sourceStatus(value.libraryOfCongress)
+    || !sourceStatus(value.librivox)
   ) return null;
   return {
     gutenberg: value.gutenberg,
@@ -59,6 +61,7 @@ function parseSources(value: unknown): ResolverSources | null {
     wikisource: value.wikisource,
     doab: value.doab,
     libraryOfCongress: value.libraryOfCongress,
+    librivox: value.librivox,
   };
 }
 
@@ -107,6 +110,7 @@ export async function resolveWorkById(
     wikisource: "unavailable",
     doab: "unavailable",
     libraryOfCongress: "unavailable",
+    librivox: "unavailable",
   };
   let rightsContext = parseRightsContext(null, region);
 

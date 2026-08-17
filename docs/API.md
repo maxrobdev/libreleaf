@@ -25,6 +25,8 @@ Parameters:
 
 Each response is one page aggregated from independent source pages. Continue passing `nextCursor` unchanged until it is `null`; there is no fixed 96-result stop. Do not combine `cursor` with the compatibility `page` parameter.
 
+Works can expose more than one route type. For example, a canonical work may have a Gutenberg EPUB and a LibriVox audiobook. `counts` and the web filters count every attached offer type rather than only the work's primary action.
+
 `partial: true` means at least one source was slow, unavailable, deferred, or served stale data. Useful results from other sources remain valid. `sources`, `sourceHealth`, and `searchTiming` explain the state without exposing reader queries or upstream internals. A failed source's cursor does not advance, so the next page can retry it.
 
 ## Resolve a work
@@ -60,7 +62,7 @@ The endpoint returns independent live-list states. A list can be `live`, `stale`
 `region` changes the displayed context; it is not geolocation or legal clearance.
 
 - `verified`: the source claim or explicit licence applies to the selected context as represented.
-- `source-jurisdiction-only`: the claim belongs to another jurisdiction. Project Gutenberg's public-domain assessment is US-based.
+- `source-jurisdiction-only`: the claim belongs to another jurisdiction. Project Gutenberg and LibriVox public-domain assessments are US-based.
 - `check-local`: the source supplies access but LibreLeaf cannot determine local permission.
 
 Keep `rights.status`, `jurisdiction`, `note`, `licenceUrl`, and `applicability` attached to the offer. Do not turn `download` into a global public-domain claim.
