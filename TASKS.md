@@ -28,7 +28,7 @@ Every substantive product request from the build conversation is represented bel
 - Netlify production site at `https://libreleaf-books.netlify.app`, with static route fallbacks and API/edge-function routing.
 - Empty-by-default unified home/search page, title/author/subject modes, URL state, 24-result visual batches, and upstream paging until each source is exhausted.
 - Canonical work view, exact clustering, stable work IDs/permalinks, all retained offers/source records, source provenance, region context, and plain-English RRF reasons.
-- Five independent lawful sources: Project Gutenberg, Open Library, Wikisource, DOAB, and Library of Congress; one failed source no longer takes down search.
+- Six independent lawful source adapters: Project Gutenberg, Open Library, Wikisource, DOAB, Library of Congress, and LibriVox; one failed source no longer takes down search.
 - UK/US/global context selector and corrected Gutenberg copy: Gutenberg's public-domain assessment is US-based and is never presented as a UK legal determination.
 - Smart search caching, stale source pages, bounded browser cache, source budgets/circuit breaking, non-advancing failed cursors, and safe source-health diagnostics.
 - Country-aware open-access search, direct download/read/borrow/preview routes, on-demand Open Library editions, and source-specific rights notes.
@@ -73,11 +73,18 @@ Every substantive product request from the build conversation is represented bel
 - The public LibreLeaf relay remains Off. Readers must explicitly connect their own HTTPS relay; LibreLeaf does not proxy the transfer or receive the fragment key/relay address.
 - Verification passed: 14 focused LibreSend tests, complete `npm run check`, quiet Compose validation, and a real dependency-free Node relay reporting `filesystem` storage on loopback. Production `/send` exposes the collapsed self-hosted relay controls, reports Relay Off by default and has no horizontal overflow at 1280 px; `/developers` exposes SDK, Node, Docker and custom-store documentation.
 
+### Shipped in deploy `6a82d6efee37ee71e390c6bd`
+
+- LibreSend framework v3 adds a trusted local host-extension contract, local-only process-start loader, custom atomic-store and request-policy hooks, optional CORS headers, startup/shutdown hooks, versioned privacy-bounded modules, public capability discovery, an extension validator, a runnable aggregate-only reference mod, and a read-only Compose overlay. Remote loading, directory scanning and hot reload are deliberately absent.
+- The public LibreLeaf relay remains Off. The live client now describes memory, persistent and trusted custom-code self-host paths without enabling file storage on LibreLeaf.
+- LibriVox is the sixth resolver adapter. It pages the official audiobook API, retains listen/RSS/MP3 routes, participates in exact canonical clustering and RRF, exposes Listen/source filters through web/API/MCP, and keeps LibriVox's US public-domain assessment separate from UK/global local-law context.
+- Verification passed: 16 focused LibreSend tests, 14 resolver tests, full `npm run check`, both default and extension Compose validation, a real custom relay capability response, OpenAPI enum verification, production browser QA, and `npm audit` plus GitHub Dependabot reporting zero open vulnerabilities. The official LibriVox API returned no bytes within repeated 12-second checks during release verification; production reports a retryable timeout/deferred state without advancing its cursor or delaying the other catalogues beyond the 2.5-second budget.
+
 ### Next / not yet implemented
 
 - Custom domain research and migration, including live price/renewal/trademark checks and coordinated canonical redirects. See LL-012.
 - Open, self-hostable resolver database/index with checked-in migrations, reproducible importers, exports, and optional replaceable search engine. See LL-017.
-- More country/language sources, LibriVox audio, approved Standard Ebooks feed, national libraries, university OA catalogues, and additional Wikisource editions. See LL-010/LL-018.
+- More country/language sources, approved Standard Ebooks feed, national libraries, university OA catalogues, and additional Wikisource editions. See LL-010/LL-018.
 - Education section and source-cited reading-set tools. See LL-019.
 - Subtle, disclosed, edition-aware affiliate purchase fallback only when no open route exists. See LL-013.
 - Verified Buy Me a Coffee/support destination; do not invent a handle. See LL-025.
@@ -91,7 +98,7 @@ Every substantive product request from the build conversation is represented bel
 
 ### LL-001 · LibreSend handoff framework
 
-- Status: framework v2 implemented and deployed; physical-device verification pending
+- Status: framework v3 implemented and deployed; physical-device verification pending
 - Owner: root agent
 - Build `/send` as a local-first tool for EPUB, PDF, and MOBI files.
 - Use the browser/OS file-share sheet where supported; files remain on the user's device.
@@ -100,10 +107,11 @@ Every substantive product request from the build conversation is represented bel
 - Expose reusable file/link transports through an explicit registry so book routes and Briefleaf can hand off inline without navigating through `/send`.
 - Provide an optional self-hosted relay protocol: AES-256-GCM encryption in the browser, fragment-only keys, exact-origin CORS, byte/TTL/rate bounds, one-use retrieval, a portable Fetch handler, an injectable atomic storage interface, a loopback Node reference server, and a container build.
 - Provide a stable headless TypeScript entry point, memory and persistent single-node filesystem stores, privacy-bounded relay authorisation/event modules, session-only custom relay connection, self-describing receive links, and hardened Docker Compose deployment.
+- Provide a trusted operator-code layer that loads one explicit local module at process start, supports custom atomic storage/request policy/lifecycle hooks, advertises only bounded public capabilities, mounts read-only in Compose, and rejects remote module URLs.
 - Keep the public relay disabled until there is an explicit abuse, retention, metadata, takedown, capacity, and jurisdiction operating decision.
 - Add crawlable metadata, navigation, accessibility, responsive states, and tests.
 - Acceptance: local share/save works without a server; book and RSS links hand off inline; a self-hoster can run the reference relay with volatile or persistent storage or implement the documented store/module/transport interfaces; a custom relay can be connected without proxying it through LibreLeaf; the public deployment never silently stores files.
-- Verification: fourteen focused tests cover EPUB/PDF/MOBI validation, exact Web Share payloads, share/copy fallback, AES-GCM round trip and tamper failure, bounded bodies and capacity, capability checks, exact origins, portable fragment-only relay links, persistent storage across instances, concurrent one-use claims, module authorisation/metadata-only events, single-use deletion, and duplicate-safe transports. The dependency-free Node process declared `filesystem` storage on loopback, `docker compose config --quiet` and `npm run check` passed, and production deploy `6a82cea609294fc3f52c8f51` exposes the framework controls while keeping the public relay Off. Real-device share-sheet and cross-device relay verification remain required.
+- Verification: sixteen focused tests cover EPUB/PDF/MOBI validation, exact Web Share payloads, share/copy fallback, AES-GCM round trip and tamper failure, bounded bodies/capacity, capability checks, exact origins, portable fragment-only relay links, persistent storage across instances, concurrent one-use claims, module authorisation/metadata-only events, trusted local extension loading, remote-URL rejection, custom-store/header/capability validation, single-use deletion, and duplicate-safe transports. The extension validator, both Compose configurations, `npm run check`, and a real `community-host` relay capability response pass. Production deploy `6a82d6efee37ee71e390c6bd` exposes the framework controls while keeping the public relay Off. Real-device share-sheet and cross-device relay verification remain required.
 - Next pass: test real EPUB/PDF/MOBI handoff on iPhone and Android, installed Apple Books/Kindle/KOReader targets, cross-device relay links on an operator-controlled test relay, interruption/retry behaviour, and accessibility with VoiceOver/TalkBack.
 
 ### LL-002 · Reliable curated lists
@@ -224,7 +232,7 @@ Every substantive product request from the build conversation is represented bel
 - Verify desktop and narrow-screen search/list layout before reporting completion.
 - Acceptance: deployment URL/ID and measured smoke results are recorded; no local-only fix is called shipped.
 - Verification: `npm run check` and the production-equivalent Netlify CLI build pass. Deploy `6a825392ea98cbdf31dc3e57` serves the centred tagged hero, stable compact search composer, static starter shelf, unified root search, Lists, Briefleaf, Book tools, Guides, Developers, the earlier local-only send client and social image. Production mobile Frankenstein search returned 24 visible cards without a page error. The resolver returned useful partial results with an independent cursor. Combined BBC/Guardian preview returned 24 round-robin items, both sources live, seven full-feed-text items, a working side reader and a valid inline EPUB with Send/Save actions.
-- Latest release: deploy `6a82cea609294fc3f52c8f51` passed the full pipeline and production checks for LibreSend v2 and Developers; see the shipped release record above.
+- Latest release: deploy `6a82d6efee37ee71e390c6bd` passed the full pipeline and production checks for LibreSend v3, LibriVox integration and the patched dependency set; see the shipped release record above.
 
 ### LL-025 · Verified maintainer support link
 
@@ -284,7 +292,8 @@ Every substantive product request from the build conversation is represented bel
 ### LL-010 · More lawful sources and countries
 
 - Status: ongoing
-- Owner: unclaimed
+- Owner: root agent
+- Shipped LibriVox as the sixth adapter with official paging, audio routes, provenance, host allowlists, independent health/cursor state, UI/API/MCP support, and US-specific rights context. Upstream reachability remains externally degraded at the time of release and is reported rather than hidden.
 - Evaluate official sources by country/language before implementation. Record API terms, rights model, paging, identifiers, file-link policy, availability, rate limits, and expected latency.
 - Prioritise sources that improve canonical-work coverage or add a real lawful route, not duplicate metadata.
 - Candidate classes: national libraries, legal-deposit/public-domain portals, university presses, OA monographs, official Wikisource language editions, and library lending catalogues.
@@ -324,10 +333,10 @@ Every substantive product request from the build conversation is represented bel
 
 ### LL-018 · Source expansion programme (v0.2)
 
-- Status: next version after current deployment
-- Owner: unclaimed
+- Status: ongoing; LibriVox priority shipped
+- Owner: root agent
 - Add sources only through documented adapters and a source-review checklist covering official status, API/feed terms, identifiers, paging, host allowlists, update cadence, rights model, geography, and failure behaviour.
-- Priorities: LibriVox audio, approved Standard Ebooks OPDS access, national-library digital collections, university-press OA books, additional Wikisource language editions, and country-specific public-domain catalogues.
+- Priorities: approved Standard Ebooks OPDS access, national-library digital collections, university-press OA books, additional Wikisource language editions, and country-specific public-domain catalogues.
 - Do not add a source merely to increase a counter. It must add a distinct lawful route, edition, language, jurisdiction signal, or canonical identifier.
 - Acceptance: Gutenberg is not a majority of the published judgement-set routes when other reviewed sources contain the requested work; source share and failure rates are reported without tracking readers.
 
@@ -399,7 +408,7 @@ Every substantive product request from the build conversation is represented bel
 
 ## Completed foundation
 
-- Five-source lawful resolver: Project Gutenberg, Open Library, Wikisource, DOAB, and Library of Congress.
+- Six-source lawful resolver: Project Gutenberg, Open Library, Wikisource, DOAB, Library of Congress, and LibriVox.
 - UK, US, and global rights-context selector with source-specific caveats.
 - Independent opaque cursors with no permanent 96-result cap.
 - Exact work clustering, retained source records/offers, transparent RRF ranking, and stable work permalinks.
