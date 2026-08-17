@@ -80,10 +80,16 @@ Every substantive product request from the build conversation is represented bel
 - LibriVox is the sixth resolver adapter. It pages the official audiobook API, retains listen/RSS/MP3 routes, participates in exact canonical clustering and RRF, exposes Listen/source filters through web/API/MCP, and keeps LibriVox's US public-domain assessment separate from UK/global local-law context.
 - Verification passed: 16 focused LibreSend tests, 14 resolver tests, full `npm run check`, both default and extension Compose validation, a real custom relay capability response, OpenAPI enum verification, production browser QA, and `npm audit` plus GitHub Dependabot reporting zero open vulnerabilities. The official LibriVox API returned no bytes within repeated 12-second checks during release verification; production reports a retryable timeout/deferred state without advancing its cursor or delaying the other catalogues beyond the 2.5-second budget.
 
+### Shipped in deploy `6a82dc93b24a4a8a21828c50`
+
+- Open resolver index phase one adds a checked-in SQLite/FTS5 migration, bounded deterministic NDJSON importer, canonical work/source record/offer/merge-decision schema, newest-source refresh protection, failed-refresh history, local BM25 search with retained RRF and merge explanations, complete JSON/CSV export, and a loopback-by-default read-only self-hosted service.
+- Production search intentionally remains on the six isolated live adapters until scheduled full-source importers, reviewed tombstones/freshness and deployment storage are ready. The index is an open self-hosted reference path, not an undeclared production dependency.
+- Verification passed: eight focused index tests, full `npm run check`, clean GitHub push at `ef35714`, production home and LibreSend HTTP 200, and production Frankenstein search returning 29 works with a retryable cursor while three healthy sources continued through three independent upstream timeouts.
+
 ### Next / not yet implemented
 
 - Custom domain research and migration, including live price/renewal/trademark checks and coordinated canonical redirects. See LL-012.
-- Open, self-hostable resolver database/index with checked-in migrations, reproducible importers, exports, and optional replaceable search engine. See LL-017.
+- Scheduled full-source importers, reviewed tombstones/freshness, deployment storage and production-primary cutover for the shipped open resolver index. See LL-017.
 - More country/language sources, approved Standard Ebooks feed, national libraries, university OA catalogues, and additional Wikisource editions. See LL-010/LL-018.
 - Education section and source-cited reading-set tools. See LL-019.
 - Subtle, disclosed, edition-aware affiliate purchase fallback only when no open route exists. See LL-013.
