@@ -55,11 +55,11 @@ Every substantive product request from the build conversation is represented bel
 - Briefleaf: repaired cross-runtime RSS fetches, added a reviewed multi-feed directory, combined editions, inline reader themes, and inline EPUB share/save. See LL-021/LL-027.
 - Release checks and production smoke tests completed on Netlify deploy `6a824a61c66dcdcbc00d952e`. See LL-024.
 
-### Current release candidate
+### Shipped in deploy `6a825392ea98cbdf31dc3e57`
 
 - Search composer: one stable desktop/mobile bar, compact 30 px submit action, active mode/region summary in the bar, animated model-picker-style options panel, outside-click/Escape dismissal, and no zero-count or button treatment on Saved.
 - Briefleaf: The Guardian added as a second reviewed UK publisher; publisher-supplied full RSS descriptions, `content:encoded`, and Atom article text are sanitised and available in the side reader and EPUB, while summary-only feeds remain clearly labelled and link to the original article. Selected publishers are round-robin interleaved before the 24-item cap, and source status is collapsed by default.
-- Deployment and production verification are in progress; do not call these changes live until LL-024 records the new deploy ID.
+- Production verification passed: mobile Frankenstein search rendered 24 cards with no error; BBC and Guardian alternated through the combined 24-item edition; seven live items exposed substantive publisher-supplied feed text; the side reader exposed Previous, Next and Full page; and the EPUB flow exposed both Send and Save.
 
 ### Next / not yet implemented
 
@@ -207,7 +207,7 @@ Every substantive product request from the build conversation is represented bel
 - Click the homepage Frankenstein link in production and assert useful results rather than only checking HTTP status.
 - Verify desktop and narrow-screen search/list layout before reporting completion.
 - Acceptance: deployment URL/ID and measured smoke results are recorded; no local-only fix is called shipped.
-- Verification: `npm run check` and the production-equivalent Netlify CLI build pass. Deploy `6a824a61c66dcdcbc00d952e` serves the centred tagged hero, static starter shelf, unified root search, Lists, Briefleaf, Book tools, Guides, Developers, LeafSend and social image. Production Frankenstein search returned 24 visible cards without a page error; the resolver API returned useful partial results with an independent cursor; combined BBC/NPR preview returned 24 attributed items and a valid EPUB.
+- Verification: `npm run check` and the production-equivalent Netlify CLI build pass. Deploy `6a825392ea98cbdf31dc3e57` serves the centred tagged hero, stable compact search composer, static starter shelf, unified root search, Lists, Briefleaf, Book tools, Guides, Developers, LeafSend and social image. Production mobile Frankenstein search returned 24 visible cards without a page error. The resolver returned useful partial results with an independent cursor. Combined BBC/Guardian preview returned 24 round-robin items, both sources live, seven full-feed-text items, a working side reader and a valid inline EPUB with Send/Save actions.
 
 ### LL-025 · Verified maintainer support link
 
