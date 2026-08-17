@@ -61,6 +61,12 @@ Every substantive product request from the build conversation is represented bel
 - Briefleaf: The Guardian added as a second reviewed UK publisher; publisher-supplied full RSS descriptions, `content:encoded`, and Atom article text are sanitised and available in the side reader and EPUB, while summary-only feeds remain clearly labelled and link to the original article. Selected publishers are round-robin interleaved before the 24-item cap, and source status is collapsed by default.
 - Production verification passed: mobile Frankenstein search rendered 24 cards with no error; BBC and Guardian alternated through the combined 24-item edition; seven live items exposed substantive publisher-supplied feed text; the side reader exposed Previous, Next and Full page; and the EPUB flow exposed both Send and Save.
 
+### Shipped in deploy `6a82caaedcc807ea030492a0`
+
+- LibreSend replaced the provisional local handoff with a modular transport registry, inline lawful-link handoff, authenticated client-side file encryption, a one-use relay protocol, portable Fetch handler, bounded memory store, dependency-free Node server, container definition and custom adapter contract. The production relay remains intentionally off.
+- Briefleaf can filter a combined edition to full-content RSS items, renders feed-supplied article text as readable paragraphs, keeps Previous/Next inside the filtered set, collapses selected-source detail, and hands both article links and generated EPUB files to LibreSend inline.
+- Production verification passed: `/send` identified LibreSend with Relay Off and no horizontal overflow at 390 px; the combined UK feed exposed nine full-RSS-text items; the mobile reader showed 10 attributed paragraphs plus Send link and Full page; Frankenstein returned 24 cards without an error and its access panel exposed two Send actions; `/developers` exposed the LibreSend framework docs and MCP endpoint.
+
 ### Next / not yet implemented
 
 - Custom domain research and migration, including live price/renewal/trademark checks and coordinated canonical redirects. See LL-012.
@@ -79,7 +85,7 @@ Every substantive product request from the build conversation is represented bel
 
 ### LL-001 · LibreSend handoff framework
 
-- Status: framework implementation complete; deployment and physical-device verification pending
+- Status: framework implemented and deployed; physical-device verification pending
 - Owner: root agent
 - Build `/send` as a local-first tool for EPUB, PDF, and MOBI files.
 - Use the browser/OS file-share sheet where supported; files remain on the user's device.
@@ -90,7 +96,7 @@ Every substantive product request from the build conversation is represented bel
 - Keep the public relay disabled until there is an explicit abuse, retention, metadata, takedown, capacity, and jurisdiction operating decision.
 - Add crawlable metadata, navigation, accessibility, responsive states, and tests.
 - Acceptance: local share/save works without a server; book and RSS links hand off inline; a self-hoster can run the reference relay or implement the documented store/transport interfaces; the public deployment never silently stores files.
-- Verification: eleven focused tests cover EPUB/PDF/MOBI validation, exact Web Share payloads, share/copy link fallback, AES-GCM round trip and tamper failure, bounded streamed bodies and memory capacity, capability checks before encryption, exact origins, single-use relay deletion, and duplicate-safe custom transport registration. `docs/LIBRESEND.md`, `tools/libresend-relay/server.ts`, and `Dockerfile.libresend-relay` document and implement the self-host path. Full release checks and real-device share-sheet verification remain required.
+- Verification: eleven focused tests cover EPUB/PDF/MOBI validation, exact Web Share payloads, share/copy link fallback, AES-GCM round trip and tamper failure, bounded streamed bodies and memory capacity, capability checks before encryption, exact origins, single-use relay deletion, and duplicate-safe custom transport registration. The dependency-free Node relay returned its declared capabilities on loopback. `npm run check` passed before deploy `6a82caaedcc807ea030492a0`; deployed desktop and 390 px layouts have no overflow and report the public relay as Off. Real-device share-sheet and cross-device relay verification remain required.
 - Next pass: test real EPUB/PDF/MOBI handoff on iPhone and Android, installed Apple Books/Kindle/KOReader targets, cross-device relay links on an operator-controlled test relay, interruption/retry behaviour, and accessibility with VoiceOver/TalkBack.
 
 ### LL-002 · Reliable curated lists
@@ -211,6 +217,7 @@ Every substantive product request from the build conversation is represented bel
 - Verify desktop and narrow-screen search/list layout before reporting completion.
 - Acceptance: deployment URL/ID and measured smoke results are recorded; no local-only fix is called shipped.
 - Verification: `npm run check` and the production-equivalent Netlify CLI build pass. Deploy `6a825392ea98cbdf31dc3e57` serves the centred tagged hero, stable compact search composer, static starter shelf, unified root search, Lists, Briefleaf, Book tools, Guides, Developers, the earlier local-only send client and social image. Production mobile Frankenstein search returned 24 visible cards without a page error. The resolver returned useful partial results with an independent cursor. Combined BBC/Guardian preview returned 24 round-robin items, both sources live, seven full-feed-text items, a working side reader and a valid inline EPUB with Send/Save actions.
+- Latest release: deploy `6a82caaedcc807ea030492a0` passed the same build pipeline and production checks for LibreSend, Briefleaf, root search/book handoff and Developers; see the shipped release record above.
 
 ### LL-025 · Verified maintainer support link
 
