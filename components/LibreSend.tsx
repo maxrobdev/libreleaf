@@ -6,14 +6,21 @@ import {
   canShareReaderFile,
   checkReaderFile,
   formatReaderFileSize,
-  LEAFSEND_ACCEPT,
+  handoffLink,
+  LIBRESEND_ACCEPT,
   type ReaderFileFormat,
-} from "../lib/leaf-send";
-import styles from "./LeafSend.module.css";
+} from "../lib/libresend/core";
+import {
+  createEncryptedRelayTransfer,
+  normaliseRelayUrl,
+  receiveEncryptedRelayTransfer,
+} from "../lib/libresend/client";
+import styles from "./LibreSend.module.css";
 
 const SEND_TO_KINDLE_URL = "https://www.amazon.co.uk/sendtokindle";
 const SEND_TO_KINDLE_HELP_URL = "https://digprjsurvey.amazon.co.uk/csad/help/node/G5WYD9SAF7PGXRNA";
 const KOBO_IMPORT_HELP_URL = "https://help.kobo.com/hc/en-us/articles/360024775093-Add-non-protected-PDF-and-ePub-files-to-your-Kobo-eReader-using-your-computer";
+const LIBRESEND_DOCS_URL = "https://github.com/maxrobdev/libreleaf/blob/main/docs/LIBRESEND.md";
 
 type SelectedReaderFile = {
   file: File;
@@ -27,10 +34,31 @@ type HandoffState =
   | { kind: "working"; message: string }
   | { kind: "success" | "error" | "info"; message: string };
 
-export function LeafSend() {
+type RelayState =
+  | { kind: "idle" }
+  | { kind: "working"; message: string }
+  | { kind: "ready"; url: string; expiresAt: string; message: string }
+  | { kind: "error"; message: string };
+
+type ReceiveRequest = { id: string; key: string };
+
+function configuredRelay(explicit: string | undefined) {
+  const value = explicit || document.querySelector<HTMLMetaElement>('meta[name="libresend-relay-url"]')?.content || "";
+  if (!value) return "";
+  try {
+    return normaliseRelayUrl(value);
+  } catch {
+    return "";
+  }
+}
+
+export function LibreSend({ relayUrl }: { relayUrl?: string }) {
   const [selected, setSelected] = useState<SelectedReaderFile | null>(null);
   const [fileError, setFileError] = useState("");
   const [handoff, setHandoff] = useState<HandoffState>({ kind: "idle" });
+  const [relayEndpoint, setRelayEndpoint] = useState("");
+  const [relay, setRelay] = useState<RelayState>({ kind: "idle" });
+  const [receiveRequest, setReceiveRequest] = useState<ReceiveRequest | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const localUrlRef = useRef("");
   const fileHintId = useId();
@@ -39,6 +67,13 @@ export function LeafSend() {
   useEffect(() => () => {
     if (localUrlRef.current) URL.revokeObjectURL(localUrlRef.current);
   }, []);
+
+  useEffect(() => {
+    setRelayEndpoint(configuredRelay(relayUrl));
+    const id = new URLSearchParams(window.location.search).get("receive") ?? "";
+    const key = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("key") ?? "";
+    if (id && key) setReceiveRequest({ id, key });
+  }, [relayUrl]);
 
   function releaseLocalUrl() {
     if (!localUrlRef.current) return;
@@ -49,6 +84,7 @@ export function LeafSend() {
   function selectFile(file: File | undefined) {
     setFileError("");
     setHandoff({ kind: "idle" });
+    setRelay({ kind: "idle" });
     if (!file) return;
 
     const checked = checkReaderFile(file);
@@ -74,6 +110,7 @@ export function LeafSend() {
     setSelected(null);
     setFileError("");
     setHandoff({ kind: "idle" });
+    setRelay({ kind: "idle" });
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -92,22 +129,78 @@ export function LeafSend() {
     }
   }
 
+  async function createRelayLink() {
+    if (!selected || !relayEndpoint) return;
+    setRelay({ kind: "working", message: "Encrypting on this device…" });
+    try {
+      const result = await createEncryptedRelayTransfer({
+        file: selected.file,
+        relayUrl: relayEndpoint,
+        appUrl: window.location.origin,
+      });
+      setRelay({
+        kind: "ready",
+        url: result.receiveUrl,
+        expiresAt: result.expiresAt,
+        message: "One-use encrypted link ready.",
+      });
+    } catch (error) {
+      setRelay({ kind: "error", message: error instanceof Error ? error.message : "The encrypted transfer could not be created." });
+    }
+  }
+
+  async function shareRelayLink() {
+    if (relay.kind !== "ready") return;
+    const result = await handoffLink(navigator, { title: `LibreSend · ${selected?.file.name ?? "encrypted file"}`, url: relay.url });
+    setRelay({
+      ...relay,
+      message: result === "shared" ? "Link sent." : result === "copied" ? "Link copied." : result === "cancelled" ? "Share cancelled; the link remains ready." : "Copy the link manually.",
+    });
+  }
+
+  async function receiveFile() {
+    if (!receiveRequest || !relayEndpoint) return;
+    setHandoff({ kind: "working", message: "Receiving and decrypting on this device…" });
+    try {
+      const decrypted = await receiveEncryptedRelayTransfer({ ...receiveRequest, relayUrl: relayEndpoint });
+      const file = new File([decrypted.bytes.slice().buffer], decrypted.name, { type: decrypted.type });
+      selectFile(file);
+      setReceiveRequest(null);
+      window.history.replaceState({}, "", "/send");
+      setHandoff({ kind: "success", message: "Encrypted transfer received. The file now exists only in this browser session." });
+    } catch (error) {
+      setHandoff({ kind: "error", message: error instanceof Error ? error.message : "The encrypted transfer could not be received." });
+    }
+  }
+
   return (
     <main className={styles.page}>
       <SiteNav active="send" />
 
       <header className={styles.hero}>
         <div>
-          <p className={styles.eyebrow}>LOCAL FILE HANDOFF</p>
-          <h1>LeafSend</h1>
-          <p>Move an EPUB, PDF or MOBI through your device&apos;s share sheet. LibreLeaf does not receive the file.</p>
+          <p className={styles.eyebrow}>LOCAL-FIRST FILE HANDOFF</p>
+          <h1>LibreSend</h1>
+          <p>Move an EPUB, PDF or MOBI with the system share sheet, or through an optional self-hosted encrypted relay.</p>
         </div>
-        <dl className={styles.privacyFacts} aria-label="LeafSend privacy properties">
-          <div><dt>Upload</dt><dd>None</dd></div>
+        <dl className={styles.privacyFacts} aria-label="LibreSend privacy properties">
+          <div><dt>Default</dt><dd>Local only</dd></div>
           <div><dt>Account</dt><dd>None</dd></div>
-          <div><dt>Processing</dt><dd>On device</dd></div>
+          <div><dt>Relay</dt><dd>{relayEndpoint ? "Encrypted" : "Off"}</dd></div>
         </dl>
       </header>
+
+      {receiveRequest ? (
+        <section className={styles.receive} aria-labelledby="receive-title">
+          <div><span>INCOMING</span><h2 id="receive-title">Encrypted transfer</h2></div>
+          {relayEndpoint ? (
+            <button type="button" onClick={() => void receiveFile()} disabled={handoff.kind === "working"}>
+              {handoff.kind === "working" ? "Receiving…" : "Receive once"}
+            </button>
+          ) : <p>This LibreSend installation has no relay configured.</p>}
+          {handoff.kind !== "idle" ? <p role={handoff.kind === "error" ? "alert" : "status"}>{handoff.message}</p> : null}
+        </section>
+      ) : null}
 
       <section className={styles.workspace} aria-labelledby="select-file-title">
         <div className={styles.toolHeader}>
@@ -123,13 +216,13 @@ export function LeafSend() {
             <input
               ref={inputRef}
               type="file"
-              accept={LEAFSEND_ACCEPT}
+              accept={LIBRESEND_ACCEPT}
               aria-describedby={fileHintId}
               onChange={(event) => selectFile(event.currentTarget.files?.[0])}
             />
             <span className={styles.fileMark} aria-hidden="true">↥</span>
             <strong>Select from this device</strong>
-            <span id={fileHintId}>The file is checked by name, type and size. Its contents are not read or uploaded.</span>
+            <span id={fileHintId}>Local share and save do not upload the file. Encrypted relay mode is separate and opt-in.</span>
           </label>
         ) : (
           <div className={styles.selectedFile}>
@@ -156,6 +249,17 @@ export function LeafSend() {
               </a>
             </div>
 
+            {relayEndpoint ? (
+              <div className={styles.relayActions}>
+                <button type="button" onClick={() => void createRelayLink()} disabled={relay.kind === "working"}>
+                  {relay.kind === "working" ? relay.message : "Create encrypted link"}
+                </button>
+                {relay.kind === "ready" ? <button type="button" onClick={() => void shareRelayLink()}>Send link</button> : null}
+                {relay.kind === "ready" ? <input aria-label="Encrypted LibreSend link" readOnly value={relay.url} onFocus={(event) => event.currentTarget.select()} /> : null}
+                {relay.kind !== "idle" ? <p className={relay.kind === "error" ? styles.error : ""} role={relay.kind === "error" ? "alert" : "status"}>{relay.message}{relay.kind === "ready" && relay.expiresAt ? ` Expires ${new Date(relay.expiresAt).toLocaleString("en-GB")}.` : ""}</p> : null}
+              </div>
+            ) : null}
+
             <p
               className={`${styles.handoffStatus} ${handoff.kind === "error" ? styles.error : ""}`}
               id={statusId}
@@ -163,7 +267,7 @@ export function LeafSend() {
               aria-live="polite"
             >
               {handoff.kind === "idle"
-                ? "The operating system controls available share targets. LeafSend cannot choose or verify the destination."
+                ? "The operating system controls available share targets. LibreSend cannot choose or verify the destination."
                 : handoff.message}
             </p>
           </div>
@@ -177,7 +281,7 @@ export function LeafSend() {
             <span>02</span>
             <h2 id="device-routes-title">Device routes</h2>
           </div>
-          <p>Official instructions. LeafSend does not connect to Kindle or Kobo accounts.</p>
+          <p>Official instructions. LibreSend does not connect to Kindle or Kobo accounts.</p>
         </div>
 
         <div className={styles.deviceGrid}>
@@ -212,12 +316,18 @@ export function LeafSend() {
 
       <aside className={styles.boundary} aria-label="Privacy boundary">
         <strong>Privacy boundary</strong>
-        <p>LeafSend creates only a temporary local browser URL for the save action. Closing the page releases it. A share destination may apply its own upload, account and privacy rules.</p>
+        <p>Local mode creates only a temporary browser URL. Relay mode encrypts the complete file before upload; the key stays in the link fragment and is not sent to the relay. A share destination may apply its own rules.</p>
       </aside>
+
+      <details className={styles.framework}>
+        <summary>Self-host LibreSend</summary>
+        <p>Run the open relay handler with an in-memory or custom storage adapter, strict origin rules, expiry and one-use retrieval. The public LibreLeaf site does not run a relay by default.</p>
+        <a href={LIBRESEND_DOCS_URL} target="_blank" rel="noreferrer">Protocol, server and adapter code ↗</a>
+      </details>
 
       <footer className={styles.footer}>
         <a href="/">LibreLeaf</a>
-        <span>Local handoff only. No file server.</span>
+        <span>Local by default. Relay is opt-in.</span>
         <a href="/resources">Other tools <span aria-hidden="true">→</span></a>
       </footer>
     </main>

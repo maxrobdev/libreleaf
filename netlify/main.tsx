@@ -7,7 +7,7 @@ import { Briefleaf } from "../components/Briefleaf";
 import { Developers } from "../components/Developers";
 import { GuideArticle, GuidesHub } from "../components/Guides";
 import ListsPage from "../components/ListsPage";
-import { LeafSend } from "../components/LeafSend";
+import { LibreSend } from "../components/LibreSend";
 import { ResourcesDirectory } from "../components/ResourcesDirectory";
 import SearchResultsPage from "../components/SearchResultsPage";
 import { getGuide } from "../content/guides";
@@ -20,7 +20,7 @@ function Route() {
   if (path === "/about") return <><SiteNav active="about" /><AboutLibreLeaf /></>;
   if (path === "/lists") return <><SiteNav active="lists" /><ListsPage /></>;
   if (path === "/brief") return <><SiteNav active="brief" /><Briefleaf /></>;
-  if (path === "/send") return <LeafSend />;
+  if (path === "/send") return <LibreSend />;
   if (path === "/guides") return <><SiteNav active="guides" /><GuidesHub /></>;
   if (path.startsWith("/guides/")) {
     const guide = getGuide(path.slice("/guides/".length));

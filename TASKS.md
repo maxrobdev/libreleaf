@@ -34,14 +34,14 @@ Every substantive product request from the build conversation is represented bel
 - Country-aware open-access search, direct download/read/borrow/preview routes, on-demand Open Library editions, and source-specific rights notes.
 - Home rebuilt as the search interface with a preloaded ten-book shelf, two-column mobile shelf, and no first-paint catalogue fan-out.
 - Clicking a result cover or title opens its inline route menu rather than searching again; Download and Read actions align in one row.
-- Shared responsive navigation with compact Tools menu; API, MCP, Briefleaf, LeafSend, Book tools, GitHub, About, Search, Lists, Guides, and Saved are reachable without an overlong desktop bar.
+- Shared responsive navigation with compact Tools menu; API, MCP, Briefleaf, LibreSend, Book tools, GitHub, About, Search, Lists, Guides, and Saved are reachable without an overlong desktop bar.
 - Home and Search are the same search-first interface at `/`; `/search` remains a non-indexed compatibility route for old shared links.
 - Neutral selected/open styling: decorative green active underlines, left rails, and open-control rings removed while accessible focus states remain.
 - `/lists` is a separate page with 21 curated topics/168 books, two-column mobile grids, collapsed sections, cached live feeds, and useful static fallback when feeds fail.
 - Empty/unavailable Open Library trending blocks are hidden; live lists are progressive enhancement rather than required page content.
 - `/resources` Book tools directory with official Calibre, KOReader, Gutenberg, Standard Ebooks, LibriVox, Open Library, and GOV.UK library links.
-- `/send` LeafSend local-first EPUB/PDF/MOBI share/save workflow with official Kindle and Kobo paths and no upload/proprietary-integration claim.
-- `/brief` Briefleaf reviewed country RSS-to-EPUB tool, country/topic selector, preview, explainer, attribution, official source links, and LeafSend handoff.
+- `/send` LibreSend local-first EPUB/PDF/MOBI share/save workflow with official Kindle and Kobo paths and no proprietary-integration claim.
+- `/brief` Briefleaf reviewed country RSS-to-EPUB tool, country/topic selector, preview, explainer, attribution, official source links, and LibreSend handoff.
 - Twelve crawlable, distinct guides covering mobile reading, Android/iPhone EPUB, Kindle, Kobo, Calibre, UK/US public domain, OA research, MCP, API, formats, and source verification.
 - Public read-only `/api/v1` resolver endpoints, OpenAPI JSON, `/developers`, and MCP tools for search, fetch, canonical resolution, offers, provenance, and ranking explanation.
 - UK/mobile technical SEO: en-GB metadata, canonical URLs, Open Graph/Twitter, structured data, manifest, robots, full sitemap, and guide/article schemas.
@@ -70,29 +70,32 @@ Every substantive product request from the build conversation is represented bel
 - Subtle, disclosed, edition-aware affiliate purchase fallback only when no open route exists. See LL-013.
 - Verified Buy Me a Coffee/support destination; do not invent a handle. See LL-025.
 - Public-domain quotation annotations for selected curated lists, with source/edition attribution and jurisdiction review. See LL-026.
-- Physical-device LeafSend verification on iPhone/Android plus Kindle/Kobo workflows. See LL-001.
+- Physical-device LibreSend verification on iPhone/Android plus Kindle/Kobo workflows. See LL-001.
 - ChatGPT/MCP directory submission and production client examples. See LL-015.
 - Research-led rewrite of the existing twelve guide/blog pages without changing their stable URLs. See LL-028.
 - Rust/Python offline ingestion is reserved for high-volume index building only; the latency-sensitive web/API remains TypeScript until profiling justifies a split. See LL-017.
 
 ## P0 — current product pass
 
-### LL-001 · LeafSend wireless handoff
+### LL-001 · LibreSend handoff framework
 
-- Status: provisional implementation; v2 UX and physical-device verification required
-- Owner: edition_resolver agent
+- Status: framework implementation complete; deployment and physical-device verification pending
+- Owner: root agent
 - Build `/send` as a local-first tool for EPUB, PDF, and MOBI files.
 - Use the browser/OS file-share sheet where supported; files remain on the user's device.
 - Include honest official Kindle and Kobo handoff paths and a normal download/save fallback.
 - Do not claim direct proprietary integration where none exists.
+- Expose reusable file/link transports through an explicit registry so book routes and Briefleaf can hand off inline without navigating through `/send`.
+- Provide an optional self-hosted relay protocol: AES-256-GCM encryption in the browser, fragment-only keys, exact-origin CORS, byte/TTL/rate bounds, one-use retrieval, a portable Fetch handler, an injectable atomic storage interface, a loopback Node reference server, and a container build.
+- Keep the public relay disabled until there is an explicit abuse, retention, metadata, takedown, capacity, and jurisdiction operating decision.
 - Add crawlable metadata, navigation, accessibility, responsive states, and tests.
-- Acceptance: a supported mobile browser can select a local file and invoke the system share sheet; unsupported browsers receive a useful official workflow.
-- Verification: `npm run check` passes; `/send` server-renders with HTTP 200; focused tests cover EPUB/PDF/MOBI limits, exact Web Share payloads, the local download fallback, no upload code, official Amazon/Kobo links, crawlable metadata, navigation and sitemap inclusion. The in-app browser was unavailable, so the physical mobile share sheet remains a post-deploy device check.
-- Next pass: simplify the interaction, add a clear capability result before file selection, test real EPUB/PDF/MOBI handoff on iPhone and Android, test installed Apple Books/Kindle/KOReader targets, improve failure recovery, and remove any step that implies unsupported direct Kobo/Kindle integration.
+- Acceptance: local share/save works without a server; book and RSS links hand off inline; a self-hoster can run the reference relay or implement the documented store/transport interfaces; the public deployment never silently stores files.
+- Verification: eleven focused tests cover EPUB/PDF/MOBI validation, exact Web Share payloads, share/copy link fallback, AES-GCM round trip and tamper failure, bounded streamed bodies and memory capacity, capability checks before encryption, exact origins, single-use relay deletion, and duplicate-safe custom transport registration. `docs/LIBRESEND.md`, `tools/libresend-relay/server.ts`, and `Dockerfile.libresend-relay` document and implement the self-host path. Full release checks and real-device share-sheet verification remain required.
+- Next pass: test real EPUB/PDF/MOBI handoff on iPhone and Android, installed Apple Books/Kindle/KOReader targets, cross-device relay links on an operator-controlled test relay, interruption/retry behaviour, and accessibility with VoiceOver/TalkBack.
 
 ### LL-002 · Reliable curated lists
 
-- Status: complete; LL-020 enhancement in progress
+- Status: complete and deployed; LL-020 is also complete and deployed
 - Owner: search_page agent
 - Files: `components/ListsPage.tsx`, `components/ListsPage.module.css`, `components/curatedLists.ts`, `app/lists/page.tsx`, list-specific Netlify routing/metadata, and list tests.
 - Add stable curated topics: classics, fiction, nonfiction, history, philosophy, science, politics, poetry, children, and short reads.
@@ -207,7 +210,7 @@ Every substantive product request from the build conversation is represented bel
 - Click the homepage Frankenstein link in production and assert useful results rather than only checking HTTP status.
 - Verify desktop and narrow-screen search/list layout before reporting completion.
 - Acceptance: deployment URL/ID and measured smoke results are recorded; no local-only fix is called shipped.
-- Verification: `npm run check` and the production-equivalent Netlify CLI build pass. Deploy `6a825392ea98cbdf31dc3e57` serves the centred tagged hero, stable compact search composer, static starter shelf, unified root search, Lists, Briefleaf, Book tools, Guides, Developers, LeafSend and social image. Production mobile Frankenstein search returned 24 visible cards without a page error. The resolver returned useful partial results with an independent cursor. Combined BBC/Guardian preview returned 24 round-robin items, both sources live, seven full-feed-text items, a working side reader and a valid inline EPUB with Send/Save actions.
+- Verification: `npm run check` and the production-equivalent Netlify CLI build pass. Deploy `6a825392ea98cbdf31dc3e57` serves the centred tagged hero, stable compact search composer, static starter shelf, unified root search, Lists, Briefleaf, Book tools, Guides, Developers, the earlier local-only send client and social image. Production mobile Frankenstein search returned 24 visible cards without a page error. The resolver returned useful partial results with an independent cursor. Combined BBC/Guardian preview returned 24 round-robin items, both sources live, seven full-feed-text items, a working side reader and a valid inline EPUB with Send/Save actions.
 
 ### LL-025 · Verified maintainer support link
 
@@ -235,11 +238,11 @@ Every substantive product request from the build conversation is represented bel
 - Build `/brief` as a fast country-news-to-EPUB tool for e-readers and Apple Books.
 - Start with a small reviewed set of official RSS feeds for the UK, US, Canada, Australia, New Zealand, Ireland, and a global option.
 - Let the reader choose country and topic, preview headlines, and download one lightweight EPUB containing feed-supplied titles, dates, short summaries, source names, and links to the original reporting.
-- Reuse LeafSend for device handoff where possible.
-- Do not reproduce full articles, bypass paywalls, accept arbitrary server-fetched feed URLs, run scripts from feeds, or imply that inclusion is editorial endorsement.
+- Reuse LibreSend for device handoff where possible.
+- Do not fetch article pages, bypass paywalls, accept arbitrary server-fetched feed URLs, run scripts from feeds, or imply that inclusion is editorial endorsement. Publisher-supplied full-content RSS text may be sanitised, capped and read/exported with attribution.
 - Cache and sanitise feed data; use strict host allowlists, byte/time/item limits, isolated source failures, and clear freshness timestamps.
 - Acceptance: with at least one feed unavailable, a user can still create a valid EPUB quickly and open/share it on iPhone or an e-reader workflow; generated content retains source attribution and original links.
-- Verification: `npm run test:brief` passes five tests, including isolated source failure and EPUB 3 container checks; `npm run lint`, `npm run test:seo`, `npm run build:netlify`, and `npm run build` pass.
+- Verification: `npm run test:brief` passes ten tests, including sanitised publisher-supplied full RSS text, balanced multi-publisher editions, isolated source failure, cache use, reader/LibreSend integration and EPUB 3 container checks; `npm run lint`, `npm run test:seo`, `npm run build:netlify`, and `npm run build` pass.
 - Live check (2026-08-16): the reviewed top-story feeds for BBC, NPR, Global News Canada, SBS, RNZ, RTÉ, and UN News responded within the 2.5 second source deadline. A direct aggregate returned 24 GB items in 165 ms, 24 global items from two live sources in 31 ms, and 10 Canadian items in 641 ms. Results vary with publisher availability; the UI exposes live, cache, stale, and unavailable states.
 
 ### LL-009 · SEO guide library
@@ -357,7 +360,7 @@ Every substantive product request from the build conversation is represented bel
 - Publish a searchable/filterable directory of reviewed official news feeds by country, topic, language, and publisher.
 - Let readers select several feeds, combine them into one preview, deduplicate repeated stories conservatively, retain source/date/original link, and generate one lightweight EPUB.
 - Use the same selected multi-source edition in an in-browser reader mode. Provide warm and dark themes plus serif/sans reading controls, persisted locally.
-- Generate the EPUB client-side/on demand, retain the returned File in memory, and expose it directly to LeafSend's Web Share handoff from a fresh explicit user gesture. Keep a local Save EPUB fallback; never upload the file merely to transfer it.
+- Generate the EPUB client-side/on demand, retain the returned File in memory, and expose it directly to LibreSend's Web Share handoff from a fresh explicit user gesture. Keep a local Save EPUB fallback; never upload the file merely to transfer it.
 - Reader mode may display publisher/feed-supplied headline, date, source, summary, and full-content RSS text where the publisher explicitly includes it. Sanitise and cap that text; never scrape article pages or bypass publisher access controls.
 - Show per-feed live/cached/stale/unavailable state so one publisher failure does not block the edition.
 - Keep the registry declarative and open source. Do not fetch arbitrary user-supplied URLs server-side until a separate SSRF, redirect, DNS-rebinding, abuse, privacy, and egress design is approved.
@@ -372,7 +375,7 @@ Every substantive product request from the build conversation is represented bel
 - Add distinct crawlable tool explainers where a real search intent is missing:
   1. What Briefleaf does and how to combine reviewed RSS feeds into an EPUB
   2. How Briefleaf browser reader mode, attribution, themes, and inline device handoff work
-  3. What LeafSend does, supported file/device paths, privacy, and why no proprietary wireless API is claimed
+  3. What LibreSend does, supported local and self-hosted relay paths, privacy, and why no proprietary wireless API is claimed
   4. What the LibreLeaf MCP server does, how its search/resolve tools work, and how provenance/rights/ranking are returned
 - Link those explainers from `/brief`, `/send`, `/developers`, the Guides hub, sitemap, and relevant tool empty/help states.
 - Add exact step sequences, device/version caveats, common failure recovery, rights/jurisdiction distinctions, source/edition verification, accessible-reading notes, relevant LibreLeaf examples, internal links, citations, and visible last-reviewed dates.

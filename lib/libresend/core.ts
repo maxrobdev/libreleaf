@@ -1,5 +1,6 @@
-export const LEAFSEND_MAX_FILE_BYTES = 200 * 1024 * 1024;
-export const LEAFSEND_ACCEPT = ".epub,.pdf,.mobi,application/epub+zip,application/pdf,application/x-mobipocket-ebook";
+export const LIBRESEND_MAX_FILE_BYTES = 200 * 1024 * 1024;
+export const LIBRESEND_RELAY_DEFAULT_MAX_FILE_BYTES = 25 * 1024 * 1024;
+export const LIBRESEND_ACCEPT = ".epub,.pdf,.mobi,application/epub+zip,application/pdf,application/x-mobipocket-ebook";
 
 export type ReaderFileFormat = "EPUB" | "PDF" | "MOBI";
 
@@ -12,6 +13,18 @@ export type ReaderFileCandidate = {
 export type ReaderFileCheck =
   | { ok: true; format: ReaderFileFormat }
   | { ok: false; reason: string };
+
+export type LinkHandoffResult = "shared" | "copied" | "cancelled" | "unavailable";
+
+type FileShareNavigator = {
+  share?: (data: ShareData) => Promise<void>;
+  canShare?: (data: ShareData) => boolean;
+};
+
+type LinkShareNavigator = {
+  share?: (data: ShareData) => Promise<void>;
+  clipboard?: { writeText?: (value: string) => Promise<void> };
+};
 
 const formats: Record<string, { format: ReaderFileFormat; mimeTypes: string[] }> = {
   epub: {
@@ -35,7 +48,7 @@ export function checkReaderFile(file: ReaderFileCandidate): ReaderFileCheck {
   const config = formats[extension];
   if (!config) return { ok: false, reason: "Choose an EPUB, PDF or MOBI file." };
   if (!Number.isFinite(file.size) || file.size <= 0) return { ok: false, reason: "This file is empty." };
-  if (file.size > LEAFSEND_MAX_FILE_BYTES) return { ok: false, reason: "Choose a file no larger than 200 MB." };
+  if (file.size > LIBRESEND_MAX_FILE_BYTES) return { ok: false, reason: "Choose a file no larger than 200 MB." };
 
   const mimeType = file.type.trim().toLocaleLowerCase("en-GB");
   if (!genericMimeTypes.has(mimeType) && !config.mimeTypes.includes(mimeType)) {
@@ -49,11 +62,6 @@ export function formatReaderFileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
 }
 
-type FileShareNavigator = {
-  share?: (data: ShareData) => Promise<void>;
-  canShare?: (data: ShareData) => boolean;
-};
-
 export function canShareReaderFile(navigatorLike: FileShareNavigator, file: File) {
   if (typeof navigatorLike.share !== "function" || typeof navigatorLike.canShare !== "function") return false;
   try {
@@ -61,4 +69,40 @@ export function canShareReaderFile(navigatorLike: FileShareNavigator, file: File
   } catch {
     return false;
   }
+}
+
+function safePublicUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+export async function handoffLink(
+  navigatorLike: LinkShareNavigator,
+  input: { title: string; url: string },
+): Promise<LinkHandoffResult> {
+  if (!safePublicUrl(input.url)) return "unavailable";
+
+  if (typeof navigatorLike.share === "function") {
+    try {
+      await navigatorLike.share({ title: input.title, url: input.url });
+      return "shared";
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
+    }
+  }
+
+  if (typeof navigatorLike.clipboard?.writeText === "function") {
+    try {
+      await navigatorLike.clipboard.writeText(input.url);
+      return "copied";
+    } catch {
+      return "unavailable";
+    }
+  }
+
+  return "unavailable";
 }

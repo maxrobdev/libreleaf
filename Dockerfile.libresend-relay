@@ -1,0 +1,12 @@
+FROM node:22-slim
+
+WORKDIR /srv/libreleaf
+COPY lib/libresend ./lib/libresend
+COPY tools/libresend-relay ./tools/libresend-relay
+
+ENV LIBRESEND_HOST=0.0.0.0
+ENV LIBRESEND_PORT=8788
+EXPOSE 8788
+USER node
+
+CMD ["node", "--experimental-strip-types", "tools/libresend-relay/server.ts"]

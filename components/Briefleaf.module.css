@@ -67,7 +67,10 @@
 .download:disabled { background: #dcd8cf; color: #777; cursor: not-allowed; }
 .send { border: 1px solid var(--line); background: #fbf9f3; color: var(--ink); cursor: pointer; }
 .disabled { background: #dcd8cf; color: #777; }
-.selectedFeeds { grid-column: 2 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
+.selectionSummary { grid-column: 2 / -1; color: var(--muted); font-size: 10px; }
+.selectionSummary summary { width: max-content; cursor: pointer; font-weight: 700; }
+.selectionSummary[open] summary { margin-bottom: 8px; }
+.selectedFeeds { display: flex; gap: 6px; flex-wrap: wrap; }
 .selectedFeeds span { padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255, 255, 255, .42); color: var(--muted); font-size: 9px; font-weight: 700; }
 .epubStatus { grid-column: 2 / -1; margin: -7px 0 0; color: var(--muted); font-size: 10px; }
 .limit { grid-column: 2 / -1; margin: -12px 0 0; color: var(--muted); font-size: 10px; }
@@ -94,9 +97,14 @@
 .previewHeading { padding-bottom: 17px; display: flex; justify-content: space-between; align-items: end; gap: 20px; border-bottom: 1px solid var(--line); }
 .previewHeading h2 { margin: 0; font-family: var(--font-display), serif; font-size: clamp(30px, 4vw, 42px); letter-spacing: -.03em; }
 .previewHeading > p { margin: 0; color: var(--muted); font-size: 11px; text-align: right; }
+.readingModes { margin-top: 14px; display: flex; gap: 6px; }
+.readingModes button { min-height: 32px; padding: 6px 9px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--muted); font: 700 10px var(--font-sans), sans-serif; cursor: pointer; }
+.readingModes button[aria-pressed="true"] { border-color: var(--line); background: rgba(255, 255, 255, .42); color: var(--ink); }
+.readingModes span { margin-left: 4px; color: inherit; opacity: .7; }
 .items { margin: 0; padding: 0; list-style: none; }
 .items li { padding: 24px 0; display: grid; grid-template-columns: 190px minmax(0, 1fr) auto; column-gap: 22px; border-bottom: 1px solid var(--line); }
 .source { grid-column: 1; margin: 3px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.source span { width: max-content; margin-top: 5px; padding: 3px 5px; display: block; border: 1px solid var(--line); border-radius: 3px; color: var(--ink); font-size: 8px; font-weight: 700; }
 .items h3 { grid-column: 2; margin: 0 0 7px; font-family: var(--font-display), serif; font-size: 24px; line-height: 1.06; letter-spacing: -.02em; }
 .storyButton { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
 .storyButton:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -138,13 +146,14 @@
 .readerToolbar button:disabled { cursor: not-allowed; opacity: .25; }
 .readerMeta { margin: 0 0 13px; font-size: 11px; opacity: .65; }
 .reader h2 { margin: 0; font-family: inherit; font-size: clamp(34px, 6vw, 56px); line-height: 1.02; letter-spacing: -.035em; }
-.readerText { margin: 28px 0 0; font-size: clamp(17px, 2.5vw, 21px); line-height: 1.7; white-space: pre-line; }
+.readerText { margin: 28px 0 0; font-size: clamp(17px, 2.5vw, 21px); line-height: 1.7; }
+.readerText p { margin: 0 0 1.15em; }
 .readerBoundary { margin: 30px 0 12px; font: 400 11px/1.5 var(--font-sans), sans-serif; opacity: .62; }
 .readerOriginal { display: inline-block; padding-bottom: 2px; border-bottom: 1px solid currentColor; font: 700 12px/1.4 var(--font-sans), sans-serif; }
 
 @media (max-width: 820px) {
   .controls { grid-template-columns: 1fr; align-items: stretch; }
-  .selectedFeeds, .epubStatus, .limit { grid-column: 1; }
+  .selectionSummary, .epubStatus, .limit { grid-column: 1; }
   .limit { margin: -8px 0 0; }
   .directoryFilters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .items li { grid-template-columns: 1fr auto; }
@@ -157,7 +166,9 @@
   .fields, .sources ul, .feedDirectory, .directoryFilters { grid-template-columns: 1fr; }
   .actions > * { flex: 1; }
   .directoryHeading { align-items: start; }
-  .feedDirectory li { align-items: flex-start; }
+  .feedDirectory li { align-items: flex-start; flex-direction: column; }
+  .feedDirectory li > div:last-child { align-self: flex-start; }
+  .feedDirectory small { white-space: normal; }
   .previewHeading { align-items: start; flex-direction: column; gap: 8px; }
   .previewHeading > p { text-align: left; }
   .items li { padding: 20px 0; grid-template-columns: 1fr; }

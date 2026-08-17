@@ -28,6 +28,8 @@ I built LibreLeaf because public-domain knowledge should be easy for people to f
 - Starts with popular open books when no search has been made
 - Provides separate trending, free-download, and library lists
 - Includes a directory of official ebook tools, open catalogues, and UK library services
+- Combines reviewed publisher RSS feeds into an attributed browser reader and EPUB with Briefleaf
+- Shares lawful access links and local EPUB/PDF/MOBI files through the modular LibreSend framework
 - Exposes standard citation-ready `search` and `fetch` plus focused `search_books` and `resolve_access` tools over MCP
 - Works responsively across desktop and mobile layouts
 
@@ -84,6 +86,7 @@ npm run dev       # start the local development server
 npm run lint      # run ESLint
 npm run build     # create a production build
 npm run build:netlify # create the Netlify deployment
+npm run libresend:relay # run the optional loopback-only encrypted relay
 npm test          # build and run the Node test suite
 npm run check     # run every CI check
 ```
@@ -104,11 +107,14 @@ app/
 └── page.tsx              # unified home/search interface
 components/               # shared cards, search results, and directory pages
 lib/sources/              # typed source adapters and rights model
+lib/libresend/            # transport registry, encryption and portable relay handler
 mcp/                      # read-only Streamable HTTP MCP server
 netlify/                  # route-specific SPA shells, functions and Edge adapters
 docs/                     # architecture, source policy, MCP and submission notes
 tests/                    # route, source, MCP, SEO and rendered-output tests
 ```
+
+LibreSend is local-only by default. Its optional self-hosted relay receives client-encrypted, expiring, one-use envelopes and is deliberately disabled on the public LibreLeaf deployment. See the [LibreSend protocol and self-hosting guide](docs/LIBRESEND.md).
 
 LibreLeaf uses React 19, TypeScript, vinext, Vite, Netlify Functions and Netlify Edge Functions. Saved books remain in `localStorage`; there is no account database or tracking profile. See [Architecture](docs/ARCHITECTURE.md) and the [source policy](docs/SOURCE_POLICY.md).
 

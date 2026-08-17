@@ -53,7 +53,7 @@ No feed content is uploaded by a user or stored as an account library. The cache
 
 The generated file is an EPUB 3 ZIP container. `mimetype` is the first uncompressed entry, and the archive includes the required container document, package manifest, navigation document, and one XHTML reading document. All feed-derived strings are XML-escaped. There is no JavaScript or remote asset in the EPUB.
 
-`tests/brief.test.ts` verifies feed-text sanitisation, hostname rejection, partial-source success, cache use, required EPUB structure, and the publisher-supplied content boundary.
+`tests/brief.test.ts` verifies feed-text sanitisation, hostname rejection, multi-publisher interleaving, partial-source success, cache use, required EPUB structure, and the publisher-supplied content boundary. The browser reader can filter to full-content RSS items, moves between the filtered items, and hands the generated EPUB or original link to LibreSend without an intermediate upload.
 
 ## Operations
 

@@ -106,7 +106,7 @@ a { color: inherit; text-decoration: none; }
 .panel-close { position: absolute; top: 9px; right: 10px; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: rgba(255,255,255,.42); color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; }
 .panel-links { display: grid; gap: 7px; }
 .panel-links a { padding: 10px 11px; display: flex; justify-content: space-between; border: 1px solid var(--line); border-radius: 5px; background: rgba(255,255,255,.5); color: var(--ink); font-size: 11px; font-weight: 700; }
-.panel-links a:first-child { border-color: var(--ink); background: var(--ink); color: white; }
+.panel-links > div:first-child a { border-color: var(--ink); background: var(--ink); color: white; }
 .source-page { margin-top: 15px; display: inline-block; border-bottom: 1px solid var(--ink); font-size: 9px; font-weight: 700; }
 .book-info { padding-top: 16px; }
 .source-line { min-height: 15px; display: flex; justify-content: space-between; color: #7a827b; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }

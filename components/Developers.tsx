@@ -27,6 +27,7 @@ export function Developers() {
           <a href="/openapi.json">OpenAPI JSON</a>
           <a href="https://github.com/maxrobdev/libreleaf/blob/main/docs/API.md" target="_blank" rel="noreferrer">API notes ↗</a>
           <a href="/mcp">MCP endpoint</a>
+          <a href="https://github.com/maxrobdev/libreleaf/blob/main/docs/LIBRESEND.md" target="_blank" rel="noreferrer">LibreSend framework ↗</a>
         </div>
       </header>
 
@@ -81,6 +82,17 @@ export function Developers() {
         <div>
           <code>https://libreleaf-books.netlify.app/mcp</code>
           <a href="/guides/use-libreleaf-mcp">Setup guide →</a>
+        </div>
+      </section>
+
+      <section className={styles.mcp} aria-labelledby="libresend-title">
+        <div>
+          <p>LIBRESEND</p>
+          <h2 id="libresend-title">Self-host encrypted file handoff.</h2>
+        </div>
+        <div>
+          <code>handleLibreSendRelayRequest()</code>
+          <a href="https://github.com/maxrobdev/libreleaf/blob/main/docs/LIBRESEND.md" target="_blank" rel="noreferrer">Protocol and adapters ↗</a>
         </div>
       </section>
     </main>

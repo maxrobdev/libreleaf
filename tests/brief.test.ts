@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { GET as previewBrief } from "../app/api/brief/route.ts";
 import { buildBriefEpub } from "../lib/brief/epub.ts";
@@ -21,6 +22,7 @@ const fixtureFeed: BriefFeed = {
   homepage: "https://news.example.test/",
   articleHosts: ["news.example.test"],
   termsUrl: "https://news.example.test/terms",
+  language: "English",
 };
 
 const failedFeed: BriefFeed = {
@@ -230,4 +232,16 @@ test("rejects unsupported country/topic combinations before fetching", async () 
   const response = await previewBrief(new Request("https://libreleaf.test/api/brief?country=AU&topic=technology"));
   assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), { error: "This country and topic combination is not available." });
+});
+
+test("browser reader filters full RSS text and exposes inline LibreSend handoff", async () => {
+  const component = await readFile(new URL("../components/Briefleaf.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../components/Briefleaf.module.css", import.meta.url), "utf8");
+  assert.match(component, /contentMode === "all" \|\| Boolean\(item\.content\)/);
+  assert.match(component, /Full RSS text/);
+  assert.match(component, /LibreSendLink/);
+  assert.match(component, /readerItem\.content\.split/);
+  assert.match(component, /Previous/);
+  assert.match(component, /Next/);
+  assert.match(styles, /\.feedDirectory li \{ align-items: flex-start; flex-direction: column; \}/);
 });

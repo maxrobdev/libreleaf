@@ -1,6 +1,6 @@
 # Security review
 
-Last reviewed: 16 August 2026
+Last reviewed: 17 August 2026
 
 ## Deployment authority
 
@@ -14,8 +14,9 @@ Tracked files and repository history were scanned for common GitHub, Netlify, AW
 - Server-side requests use fixed official origins or strict host allowlists. Reader-supplied arbitrary proxy targets are out of scope.
 - Direct book links are allowlisted by protocol and source host before being returned.
 - Source failures are isolated and do not gain control of response headers, cache keys, HTML, or scripts.
-- Book files are linked at their source. LibreLeaf does not store or inspect them.
-- LeafSend handles a user-selected local file in the browser and does not upload it to LibreLeaf.
+- Book files are linked at their source. The public LibreLeaf deployment does not proxy or store them.
+- LibreSend local mode handles a selected file only in the browser. Its optional self-hosted relay is disabled on the public site; when configured elsewhere, the client uploads an AES-GCM encrypted envelope whose key remains in the link fragment.
+- The reference LibreSend relay enforces exact origins, byte and lifetime caps, bounded request rates and destructive one-use retrieval. Encryption does not remove a relay operator's abuse, metadata, retention, takedown or jurisdiction responsibilities.
 - Browser-saved items remain in local storage and are not an authentication or authorisation mechanism.
 
 ## Repository controls

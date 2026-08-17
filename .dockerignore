@@ -1,0 +1,13 @@
+.git
+.github
+.env*
+.netlify
+.next
+.vinext
+.wrangler
+dist
+node_modules
+outputs
+work
+*.log
+*.pem

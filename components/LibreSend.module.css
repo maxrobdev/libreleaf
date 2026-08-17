@@ -1,3 +1,4 @@
+/* LibreSend reference client */
 .page {
   min-height: 100vh;
   background: var(--paper);
@@ -5,12 +6,57 @@
 }
 
 .hero,
+.receive,
 .workspace,
 .deviceSection,
 .boundary,
+.framework,
 .footer {
   width: min(1180px, calc(100% - 40px));
   margin-inline: auto;
+}
+
+.receive {
+  margin-top: 28px;
+  padding: 18px 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px 20px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .35);
+}
+
+.receive > div span {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.receive h2 {
+  margin: 3px 0 0;
+  font-family: var(--font-display), serif;
+  font-size: 26px;
+}
+
+.receive button {
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--ink);
+  color: white;
+  font: 700 11px var(--font-sans), sans-serif;
+  cursor: pointer;
+}
+
+.receive > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .hero {
@@ -300,6 +346,53 @@
   color: #8b332b;
 }
 
+.relayActions {
+  margin-top: 12px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, auto) minmax(0, 1fr);
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.relayActions button {
+  min-height: 38px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #f4f0e7;
+  color: var(--ink);
+  font: 700 10px var(--font-sans), sans-serif;
+  cursor: pointer;
+}
+
+.relayActions button:first-child {
+  background: var(--ink);
+  color: white;
+}
+
+.relayActions input {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: white;
+  color: var(--muted);
+  font: 10px var(--font-mono, monospace);
+}
+
+.relayActions p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.relayActions .error {
+  color: #8b332b;
+}
+
 .fileError {
   margin: 12px 0 0;
   padding: 10px 12px;
@@ -430,8 +523,40 @@
   display: grid;
   grid-template-columns: 150px 1fr;
   gap: 25px;
-  border-left: 4px solid #78746b;
+  border: 1px solid var(--line);
+  border-radius: 6px;
   background: rgba(255, 255, 255, .26);
+}
+
+.framework {
+  margin-top: 12px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.framework summary {
+  padding: 15px 0;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.framework p {
+  max-width: 760px;
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.framework a {
+  display: inline-block;
+  margin-bottom: 16px;
+  border-bottom: 1px solid currentColor;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .boundary strong {
@@ -472,9 +597,11 @@
 
 @media (max-width: 760px) {
   .hero,
+  .receive,
   .workspace,
   .deviceSection,
   .boundary,
+  .framework,
   .footer {
     width: min(100% - 28px, 620px);
   }
@@ -486,7 +613,8 @@
   }
 
   .hero h1 {
-    font-size: clamp(68px, 24vw, 92px);
+    font-size: clamp(56px, 18vw, 76px);
+    letter-spacing: -.07em;
   }
 
   .hero > div > p:last-child {
@@ -525,6 +653,14 @@
   .actions,
   .deviceGrid {
     grid-template-columns: 1fr;
+  }
+
+  .relayActions {
+    grid-template-columns: 1fr;
+  }
+
+  .relayActions p {
+    grid-column: 1;
   }
 
   .shareAction,

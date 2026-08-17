@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { LibreSendLink } from "./LibreSendLink";
 import styles from "./SearchResultsPage.module.css";
 
 export type FormatLink = {
@@ -347,11 +348,14 @@ export function BookCard({ book, saved, onToggleSaved, focused = false }: BookCa
             <button ref={closeButtonRef} className="panel-close" onClick={closePanel} aria-label="Close book options">×</button>
             <h3>Get this book</h3>
             <div className="panel-links">
-              {visibleRoutes.map((route) => (
-                <a className={styles.route} key={`${book.workKey ?? book.id}-${route.url}`} href={route.url} target="_blank" rel="noreferrer" download={route.access === "download"}>
-                  <span>{route.label}<small>{route.source}{route.applicability ? ` · ${route.applicability === "verified" ? "licence/source context verified" : route.applicability === "source-jurisdiction-only" ? "source jurisdiction only; check locally" : "check local rights"}` : ""}{route.note ? ` · ${route.note}` : ""}</small></span>
-                  <span>{route.access === "download" ? "↓" : "↗"}</span>
-                </a>
+              {visibleRoutes.map((route, index) => (
+                <div className={styles.routeRow} key={`${book.workKey ?? book.id}-${route.url}`}>
+                  <a className={`${styles.route} ${index === 0 ? styles.routePrimary : ""}`} href={route.url} target="_blank" rel="noreferrer" download={route.access === "download"}>
+                    <span>{route.label}<small>{route.source}{route.applicability ? ` · ${route.applicability === "verified" ? "licence/source context verified" : route.applicability === "source-jurisdiction-only" ? "source jurisdiction only; check locally" : "check local rights"}` : ""}{route.note ? ` · ${route.note}` : ""}</small></span>
+                    <span>{route.access === "download" ? "↓" : "↗"}</span>
+                  </a>
+                  <LibreSendLink className={styles.routeSend} title={`${book.title} — ${route.label}`} url={route.url} />
+                </div>
               ))}
             </div>
             {routes.length > 3 ? (

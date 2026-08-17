@@ -14,14 +14,16 @@ import {
   type BriefFeed,
   type BriefTopic,
 } from "../lib/brief/registry";
-import { canShareReaderFile } from "../lib/leaf-send";
+import { canShareReaderFile } from "../lib/libresend/core";
 import type { BriefItem, BriefPayload, BriefSource } from "../lib/brief/service";
+import { LibreSendLink } from "./LibreSendLink";
 import styles from "./Briefleaf.module.css";
 
 type DirectoryCountry = "ALL" | BriefCountry;
 type DirectoryTopic = "ALL" | BriefTopic;
 type ReaderTheme = "warm" | "dark";
 type ReaderFont = "serif" | "sans";
+type ContentMode = "all" | "full";
 
 const feedById = new Map(BRIEF_FEEDS.map((feed) => [feed.id, feed]));
 const languages = [...new Set(BRIEF_FEEDS.map((feed) => feed.language))].sort();
@@ -78,6 +80,7 @@ export function Briefleaf() {
   const [readerTheme, setReaderTheme] = useState<ReaderTheme>("warm");
   const [readerFont, setReaderFont] = useState<ReaderFont>("serif");
   const [readerFullscreen, setReaderFullscreen] = useState(false);
+  const [contentMode, setContentMode] = useState<ContentMode>("all");
   const [epubFile, setEpubFile] = useState<File | null>(null);
   const [epubUrl, setEpubUrl] = useState("");
   const [epubBusy, setEpubBusy] = useState(false);
@@ -89,9 +92,13 @@ export function Briefleaf() {
     () => selectionQuery(country, topic, selectedFeedIds),
     [country, topic, selectedFeedIds],
   );
-  const readerIndex = readerItem && data ? data.items.findIndex((item) => item.id === readerItem.id) : -1;
-  const previousReaderItem = readerIndex > 0 ? data?.items[readerIndex - 1] : undefined;
-  const nextReaderItem = readerIndex >= 0 && data && readerIndex < data.items.length - 1 ? data.items[readerIndex + 1] : undefined;
+  const readingItems = useMemo(
+    () => data?.items.filter((item) => contentMode === "all" || Boolean(item.content)) ?? [],
+    [contentMode, data],
+  );
+  const readerIndex = readerItem ? readingItems.findIndex((item) => item.id === readerItem.id) : -1;
+  const previousReaderItem = readerIndex > 0 ? readingItems[readerIndex - 1] : undefined;
+  const nextReaderItem = readerIndex >= 0 && readerIndex < readingItems.length - 1 ? readingItems[readerIndex + 1] : undefined;
 
   const visibleFeeds = useMemo(() => {
     const wanted = directoryQuery.trim().toLocaleLowerCase();
@@ -123,6 +130,13 @@ export function Briefleaf() {
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   }, [nextReaderItem, previousReaderItem, readerItem]);
+
+  useEffect(() => {
+    if (readerItem && !readingItems.some((item) => item.id === readerItem.id)) {
+      setReaderItem(null);
+      setReaderFullscreen(false);
+    }
+  }, [readerItem, readingItems]);
 
   useEffect(() => {
     if (epubUrlRef.current) URL.revokeObjectURL(epubUrlRef.current);
@@ -240,7 +254,7 @@ export function Briefleaf() {
       epubUrlRef.current = objectUrl;
       setEpubFile(file);
       setEpubUrl(objectUrl);
-      setEpubStatus("EPUB ready. Send it or save it on this device.");
+      setEpubStatus("EPUB ready. Use LibreSend or save it here.");
     } catch (reason) {
       setEpubStatus(reason instanceof Error ? reason.message : "The EPUB could not be created.");
     } finally {
@@ -256,7 +270,7 @@ export function Briefleaf() {
     }
     try {
       await navigator.share({ files: [epubFile], title: data?.editionTitle ?? "Briefleaf EPUB" });
-      setEpubStatus("EPUB handed to your device share menu.");
+      setEpubStatus("EPUB handed to LibreSend through your device share menu.");
     } catch (reason) {
       if (reason instanceof DOMException && reason.name === "AbortError") return;
       setEpubStatus("The share menu could not send this EPUB. Use Save EPUB.");
@@ -304,15 +318,18 @@ export function Briefleaf() {
           <button className={styles.download} type="button" disabled={loading || !data?.items.length || epubBusy} onClick={() => void makeEpub()}>
             {epubBusy ? "Making EPUB…" : epubFile ? "Rebuild EPUB" : "Make EPUB"}
           </button>
-          {epubFile ? <button className={styles.send} type="button" onClick={() => void sendEpub()}>Send EPUB</button> : null}
+          {epubFile ? <button className={styles.send} type="button" onClick={() => void sendEpub()}>LibreSend</button> : null}
           {epubFile && epubUrl ? <a className={styles.send} href={epubUrl} download={epubFile.name}>Save EPUB</a> : null}
         </div>
-        <div className={styles.selectedFeeds} aria-label="Feeds in this edition">
-          {selectedFeedIds.map((feedId) => {
-            const feed = feedById.get(feedId);
-            return feed ? <span key={feed.id}>{feed.name} · {BRIEF_TOPIC_LABELS[feed.topic]}</span> : null;
-          })}
-        </div>
+        <details className={styles.selectionSummary}>
+          <summary>{selectedFeedIds.length} {selectedFeedIds.length === 1 ? "feed" : "feeds"} selected</summary>
+          <div className={styles.selectedFeeds} aria-label="Feeds in this edition">
+            {selectedFeedIds.map((feedId) => {
+              const feed = feedById.get(feedId);
+              return feed ? <span key={feed.id}>{feed.name} · {BRIEF_TOPIC_LABELS[feed.topic]}</span> : null;
+            })}
+          </div>
+        </details>
         {epubStatus ? <p className={styles.epubStatus} aria-live="polite">{epubStatus}</p> : null}
         <p className={styles.limit}>Up to {BRIEF_MAX_SELECTED_FEEDS} feeds and 24 items. No article pages are scraped.</p>
       </section>
@@ -354,19 +371,27 @@ export function Briefleaf() {
             <p className="eyebrow">COMBINED PREVIEW</p>
             <h2 id="brief-preview">{data?.editionTitle ?? "Selected feeds"}</h2>
           </div>
-          <p aria-live="polite">{loading ? "Checking feeds…" : data ? `${data.items.length} items · checked ${dateLabel(data.generatedAt)}` : "No preview"}</p>
+          <p aria-live="polite">{loading ? "Checking feeds…" : data ? `${readingItems.length}${contentMode === "full" ? ` of ${data.items.length}` : ""} items · checked ${dateLabel(data.generatedAt)}` : "No preview"}</p>
         </div>
+
+        {data?.items.length ? (
+          <div className={styles.readingModes} aria-label="RSS text filter">
+            <button type="button" aria-pressed={contentMode === "all"} onClick={() => setContentMode("all")}>All items</button>
+            <button type="button" aria-pressed={contentMode === "full"} onClick={() => setContentMode("full")}>Full RSS text <span>{data.items.filter((item) => item.content).length}</span></button>
+          </div>
+        ) : null}
 
         {error ? <div className={styles.notice}><strong>Could not complete this preview.</strong><p>{error}</p></div> : null}
         {data?.partial && data.items.length ? <div className={styles.notice}><strong>Some feeds did not respond.</strong><p>The available items are ready; source status is below.</p></div> : null}
         {!loading && data && !data.items.length ? <div className={styles.notice}><strong>No current items.</strong><p>Check the source status below or select another reviewed feed.</p></div> : null}
+        {!loading && data?.items.length && !readingItems.length ? <div className={styles.notice}><strong>No full-text RSS items in this edition.</strong><p>Show all items or select another publisher. Summary-only feeds still link to the original report.</p></div> : null}
         {loading && !data ? <div className={styles.notice}><strong>Loading reviewed feeds…</strong></div> : null}
 
-        {data?.items.length ? (
+        {readingItems.length ? (
           <ol className={styles.items}>
-            {data.items.map((item) => (
+            {readingItems.map((item) => (
               <li key={item.id}>
-                <p className={styles.source}>{item.source.name} · {dateLabel(item.publishedAt)}</p>
+                <p className={styles.source}>{item.source.name} · {dateLabel(item.publishedAt)}<span>{item.content ? "Full RSS text" : "Summary"}</span></p>
                 <h3><button className={styles.storyButton} type="button" onClick={() => openReader(item)}>{item.title}</button></h3>
                 {item.summary ? <p>{item.summary}</p> : null}
                 <button className={styles.readerButton} type="button" onClick={() => openReader(item)}>Reader view</button>
@@ -403,16 +428,17 @@ export function Briefleaf() {
               <div aria-label="Reader colour theme"><button type="button" aria-pressed={readerTheme === "warm"} onClick={() => chooseTheme("warm")}>Warm</button><button type="button" aria-pressed={readerTheme === "dark"} onClick={() => chooseTheme("dark")}>Dark</button></div>
               <div aria-label="Reader typeface"><button type="button" aria-pressed={readerFont === "serif"} onClick={() => chooseFont("serif")}>Serif</button><button type="button" aria-pressed={readerFont === "sans"} onClick={() => chooseFont("sans")}>Sans</button></div>
               <div aria-label="Article navigation"><button type="button" disabled={!previousReaderItem} onClick={() => previousReaderItem && setReaderItem(previousReaderItem)}>Previous</button><button type="button" disabled={!nextReaderItem} onClick={() => nextReaderItem && setReaderItem(nextReaderItem)}>Next</button></div>
+              <LibreSendLink className={styles.readerShare} title={readerItem.title} url={readerItem.url} label="Send link" />
               <button type="button" aria-pressed={readerFullscreen} onClick={() => setReaderFullscreen((current) => !current)}>{readerFullscreen ? "Window" : "Full page"}</button>
               <button ref={readerCloseRef} type="button" onClick={closeReader} aria-label="Close reader">Close</button>
             </div>
-            <p className={styles.readerMeta}>{readerItem.source.name} · {dateLabel(readerItem.publishedAt)}{readerIndex >= 0 && data ? ` · ${readerIndex + 1} of ${data.items.length}` : ""}</p>
+            <p className={styles.readerMeta}>{readerItem.source.name} · {dateLabel(readerItem.publishedAt)}{readerIndex >= 0 ? ` · ${readerIndex + 1} of ${readingItems.length}` : ""}</p>
             <h2 id="brief-reader-title">{readerItem.title}</h2>
             {readerItem.content
-              ? <p className={styles.readerText}>{readerItem.content}</p>
+              ? <div className={styles.readerText}>{readerItem.content.split(/\n{2,}/).map((paragraph, index) => <p key={`${readerItem.id}-${index}`}>{paragraph}</p>)}</div>
               : readerItem.summary
-                ? <p className={styles.readerText}>{readerItem.summary}</p>
-                : <p className={styles.readerText}>No text was supplied by this feed.</p>}
+                ? <div className={styles.readerText}><p>{readerItem.summary}</p></div>
+                : <div className={styles.readerText}><p>No text was supplied by this feed.</p></div>}
             <p className={styles.readerBoundary}>{readerItem.content ? "Full text supplied in this RSS item." : "This feed supplies a summary."}</p>
             <a className={styles.readerOriginal} href={readerItem.url} target="_blank" rel="noreferrer">{readerItem.content ? "Open original" : "Open full article"} at {readerItem.source.name} ↗</a>
           </section>

@@ -242,6 +242,32 @@
   font-size: 8px;
 }
 
+.routeRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px;
+}
+
+.routeRow .route {
+  min-width: 0;
+}
+
+.routeSend {
+  width: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .5);
+  color: var(--ink);
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.routeSend:hover {
+  background: white;
+}
+
 .route > span:first-child {
   min-width: 0;
   display: grid;
@@ -258,7 +284,7 @@
   white-space: nowrap;
 }
 
-.route:first-child small {
+.routePrimary small {
   color: rgba(255, 255, 255, .68);
 }
 

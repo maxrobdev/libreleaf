@@ -7,7 +7,7 @@ const pages = [
   { file: "netlify/search/index.html", path: "/search", title: "Search open-access books | LibreLeaf", noindex: true },
   { file: "netlify/lists/index.html", path: "/lists", title: "Curated open book lists | LibreLeaf" },
   { file: "netlify/brief/index.html", path: "/brief", title: "Briefleaf RSS to EPUB | LibreLeaf" },
-  { file: "netlify/send/index.html", path: "/send", title: "LeafSend — Local EPUB, PDF and MOBI handoff | LibreLeaf" },
+  { file: "netlify/send/index.html", path: "/send", title: "LibreSend — Local and encrypted ebook handoff | LibreLeaf" },
   { file: "netlify/guides/index.html", path: "/guides", title: "Ebook and open reading guides | LibreLeaf" },
   { file: "netlify/developers/index.html", path: "/developers", title: "Open book resolver API and MCP | LibreLeaf" },
   { file: "netlify/about/index.html", path: "/about", title: "About the open-source resolver | LibreLeaf" },

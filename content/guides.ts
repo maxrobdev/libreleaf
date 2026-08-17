@@ -61,7 +61,7 @@ export const guides: Guide[] = [
           "Download the EPUB or PDF in your browser and find it in Downloads or Files.",
           "Open it with a reading app you trust. Google Play Books can accept uploaded EPUB and PDF files; Apple devices can open EPUB files in Books.",
           "Check the title page and table of contents before deleting the browser download. A record can describe the right work while the file is a different translation or edition.",
-          "For another device, use the operating-system share sheet or LibreLeaf's local LeafSend tool. LeafSend does not upload the book to LibreLeaf.",
+          "For another device, use the operating-system share sheet or LibreLeaf's local LibreSend tool. Local mode does not upload the book to LibreLeaf.",
         ],
         note: "Free access does not always mean redistribution is allowed. Retain the licence or source record and share its link unless the stated terms permit sharing the file.",
       },
@@ -146,7 +146,7 @@ export const guides: Guide[] = [
       {
         heading: "Move it without uploading it here",
         paragraphs: [
-          "LeafSend accepts a local EPUB and invokes the device share sheet when the browser supports file sharing. The file stays on your device; LibreLeaf does not receive or store it. This is useful when the EPUB is already in Files and you want to choose Books, Mail, AirDrop, or another local destination.",
+          "LibreSend accepts a local EPUB and invokes the device share sheet when the browser supports file sharing. In local mode the file stays on your device. This is useful when the EPUB is already in Files and you want to choose Books, Mail, AirDrop, or another local destination.",
           "If Books rejects the file, download it again from the same verified route. Do not assume every file labelled EPUB is valid: malformed packages, incomplete downloads, and DRM-controlled loans can fail for different reasons. For a library loan, return to the lender's supported app rather than trying to alter the file.",
         ],
         note: "An EPUB can contain scripts or remote resources. Keep iOS and the reading app updated, and obtain files from identifiable catalogues or publishers.",
@@ -157,7 +157,7 @@ export const guides: Guide[] = [
       { label: "Apple Books user guide", url: "https://support.apple.com/guide/iphone/read-books-iphc1e5c5b67/ios" },
     ],
     related: ["read-free-books-on-phone", "open-epub-on-android", "send-ebook-to-kindle"],
-    action: { label: "Open LeafSend", href: "/send" },
+    action: { label: "Open LibreSend", href: "/send" },
   },
   {
     slug: "send-ebook-to-kindle",
@@ -184,7 +184,7 @@ export const guides: Guide[] = [
           "Choose the target library or device options shown by Amazon, submit, and wait for processing.",
           "Connect the Kindle to Wi-Fi, sync it, and check the Library under documents as well as books.",
         ],
-        note: "LeafSend can open the operating-system share sheet for a local file, but it is not an Amazon integration. The final import is handled by Amazon's service or app.",
+        note: "LibreSend can open the operating-system share sheet for a local file, but it is not an Amazon integration. The final import is handled by Amazon's service or app.",
       },
       {
         heading: "When it does not appear",
@@ -201,7 +201,7 @@ export const guides: Guide[] = [
       { label: "Amazon Kindle help", url: "https://www.amazon.co.uk/gp/help/customer/display.html?nodeId=G5WYD9SAF7PGXRNA" },
     ],
     related: ["ebook-formats-epub-pdf-mobi-web", "use-calibre-open-books", "verify-book-source-licence-edition"],
-    action: { label: "Prepare a local file with LeafSend", href: "/send" },
+    action: { label: "Prepare a local file with LibreSend", href: "/send" },
   },
   {
     slug: "add-ebook-to-kobo",

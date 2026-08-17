@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { LeafSend } from "../../components/LeafSend";
+import { LibreSend } from "../../components/LibreSend";
 import { getSiteUrl } from "../seo";
 
 export const metadata: Metadata = {
-  title: "LeafSend — Local EPUB, PDF and MOBI handoff",
-  description: "Share an EPUB, PDF or MOBI through your device without uploading it to LibreLeaf, with official Kindle and Kobo import routes.",
+  title: "LibreSend — Local and encrypted ebook handoff",
+  description: "Share an EPUB, PDF or MOBI locally, or connect an optional self-hosted encrypted one-use relay.",
   alternates: { canonical: "/send" },
   openGraph: {
-    title: "LeafSend — Local ebook handoff",
-    description: "Use the system share sheet or a local save fallback. Files are not uploaded to LibreLeaf.",
+    title: "LibreSend — Local and encrypted ebook handoff",
+    description: "Use local share/save or an explicitly configured self-hosted encrypted relay.",
     url: "/send",
   },
 };
@@ -19,9 +19,9 @@ export default async function SendPage() {
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "LeafSend",
+    name: "LibreSend",
     url,
-    description: "A local-first browser tool for handing EPUB, PDF and MOBI files to the operating-system share sheet or saving a local copy.",
+    description: "A local-first browser framework for sharing EPUB, PDF and MOBI files locally or through an optional self-hosted encrypted relay.",
     applicationCategory: "UtilitiesApplication",
     operatingSystem: "Any",
     browserRequirements: "A modern browser; file sharing depends on browser and operating-system support.",
@@ -31,7 +31,7 @@ export default async function SendPage() {
 
   return (
     <>
-      <LeafSend />
+      <LibreSend relayUrl={process.env.NEXT_PUBLIC_LIBRESEND_RELAY_URL} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }}

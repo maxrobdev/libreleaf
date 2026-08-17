@@ -18,7 +18,7 @@ const primaryLinks = [
 
 const toolLinks = [
   { label: "Briefleaf", detail: "RSS to EPUB", href: "/brief", key: "brief" },
-  { label: "LeafSend", detail: "Device handoff", href: "/send", key: "send" },
+  { label: "LibreSend", detail: "Device handoff", href: "/send", key: "send" },
   { label: "API + MCP", detail: "Build with LibreLeaf", href: "/developers", key: "developers" },
   { label: "Book tools", detail: "Readers and catalogues", href: "/resources", key: "resources" },
 ] as const;
