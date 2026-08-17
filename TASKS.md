@@ -317,11 +317,12 @@ Every substantive product request from the build conversation is represented bel
 
 ### LL-012 · Domain, technical SEO, and indexing
 
-- Status: ready
-- Owner: unclaimed
+- Status: in progress; crawlable technical documentation complete, custom domain pending
+- Owner: root agent
 - Select a short available domain only after live registrar-price verification and trademark/basic collision checks.
 - Move canonical URLs, sitemap, metadata, MCP/API docs, and redirects together.
 - Submit sitemaps and monitor indexing without promising placement.
+- Shipped locally for the current release: seven semantic technical-reference pages, static Netlify HTML, OpenAPI links, `llms.txt`, `llms-full.txt`, crawler-specific robots rules, sitemap entries, and `TechArticle` structured data. Search or ChatGPT appearance still depends on external crawling, indexing, and any separate directory review.
 - Acceptance: one production origin, no duplicate canonical hosts, valid structured data, and clean redirects from the Netlify subdomain.
 
 ## P2 — sustainable operation
@@ -345,6 +346,7 @@ Every substantive product request from the build conversation is represented bel
 - Add sources only through documented adapters and a source-review checklist covering official status, API/feed terms, identifiers, paging, host allowlists, update cadence, rights model, geography, and failure behaviour.
 - Priorities: approved Standard Ebooks OPDS access, national-library digital collections, university-press OA books, additional Wikisource language editions, and country-specific public-domain catalogues.
 - Do not add a source merely to increase a counter. It must add a distinct lawful route, edition, language, jurisdiction signal, or canonical identifier.
+- Wikisource quality gate shipped locally for the current release: accept category-supported work pages and reject subpages, reviews, films, disambiguation/version indexes, and general reference articles before they enter resolver ranking.
 - Acceptance: Gutenberg is not a majority of the published judgement-set routes when other reviewed sources contain the requested work; source share and failure rates are reported without tracking readers.
 
 ### LL-019 · Education section (v0.2)
@@ -375,11 +377,12 @@ Every substantive product request from the build conversation is represented bel
 
 ### LL-015 · MCP and agent ecosystem
 
-- Status: ongoing
-- Owner: unclaimed
+- Status: ongoing; public documentation and tool metadata complete, directory submission pending
+- Owner: root agent
 - Keep standard `search` and `fetch` plus resolver tools aligned with the public API.
 - Add exact-work edition and source-explanation tools only when they avoid redundant surface area.
 - Complete submission documentation and published examples for ChatGPT-compatible clients.
+- Shipped locally for the current release: crawlable MCP/API reference pages, public HTTPS endpoint instructions, accurate read-only tool descriptions, source/rights caveats, and links between MCP work IDs and the resolver API. Public endpoint availability does not imply directory approval or guaranteed ChatGPT discovery.
 - Acceptance: MCP IDs, web permalinks, API work IDs, offers, and citations resolve to the same canonical work.
 
 ### LL-027 · Briefleaf feed directory and multi-feed editions

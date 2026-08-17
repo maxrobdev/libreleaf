@@ -391,11 +391,55 @@ test("adds Wikisource and DOAB routes with language, licence and selected rights
     if (url.hostname === "openlibrary.org") return Response.json({ numFound: 0, docs: [] });
     if (url.hostname === "en.wikisource.org") {
       assert.equal(url.searchParams.get("gsroffset"), "0");
+      assert.equal(url.searchParams.get("prop"), "info|categories|pageprops");
+      assert.equal(url.searchParams.get("clshow"), "!hidden");
       return Response.json({
         batchcomplete: true,
         query: {
-          searchinfo: { totalhits: 1 },
-          pages: [{ pageid: 942, ns: 0, title: "Pride and Prejudice (1817)", pagelanguage: "en", fullurl: "https://en.wikisource.org/wiki/Pride_and_Prejudice_(1817)" }],
+          searchinfo: { totalhits: 5 },
+          pages: [
+            {
+              pageid: 942,
+              ns: 0,
+              title: "Pride and Prejudice (1817)",
+              pagelanguage: "en",
+              fullurl: "https://en.wikisource.org/wiki/Pride_and_Prejudice_(1817)",
+              categories: [{ ns: 14, title: "Category:British novels" }, { ns: 14, title: "Category:Validated texts" }],
+              pageprops: { wikibase_item: "Q118927114" },
+            },
+            {
+              pageid: 943,
+              ns: 0,
+              title: "Pride and Prejudice (1817)/Chapter 1",
+              pagelanguage: "en",
+              fullurl: "https://en.wikisource.org/wiki/Pride_and_Prejudice_(1817)/Chapter_1",
+              categories: [],
+            },
+            {
+              pageid: 944,
+              ns: 0,
+              title: "Pride and Prejudice",
+              pagelanguage: "en",
+              fullurl: "https://en.wikisource.org/wiki/Pride_and_Prejudice",
+              categories: [{ ns: 14, title: "Category:Versions pages" }],
+            },
+            {
+              pageid: 945,
+              ns: 0,
+              title: "Jane Austen review",
+              pagelanguage: "en",
+              fullurl: "https://en.wikisource.org/wiki/Jane_Austen_review",
+              categories: [{ ns: 14, title: "Category:Book reviews" }],
+            },
+            {
+              pageid: 946,
+              ns: 0,
+              title: "Pride and Prejudice film",
+              pagelanguage: "en",
+              fullurl: "https://en.wikisource.org/wiki/Pride_and_Prejudice_film",
+              categories: [{ ns: 14, title: "Category:Film" }],
+            },
+          ],
         },
       });
     }
@@ -429,6 +473,8 @@ test("adds Wikisource and DOAB routes with language, licence and selected rights
   assert.equal(body.sources.doab, "ok");
 
   const wiki = body.books.find((book: { source: string }) => book.source === "Wikisource");
+  assert.equal(body.books.filter((book: { source: string }) => book.source === "Wikisource").length, 1);
+  assert.equal(wiki.title, "Pride and Prejudice (1817)");
   assert.equal(wiki.language, "English");
   assert.equal(wiki.offers[0].access, "read");
   assert.equal(wiki.offers[0].rights.applicability, "check-local");

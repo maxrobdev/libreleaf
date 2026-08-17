@@ -5,7 +5,7 @@ import { useEffect, useId, useState } from "react";
 import styles from "./SiteNav.module.css";
 
 type SiteNavProps = {
-  active?: "home" | "search" | "lists" | "brief" | "send" | "guides" | "developers" | "about" | "resources" | "saved";
+  active?: "home" | "search" | "lists" | "brief" | "send" | "guides" | "developers" | "docs" | "about" | "resources" | "saved";
   savedCount?: number;
   onSaved?: () => void;
 };
@@ -20,6 +20,7 @@ const toolLinks = [
   { label: "Briefleaf", detail: "RSS to EPUB", href: "/brief", key: "brief" },
   { label: "LibreSend", detail: "Device handoff", href: "/send", key: "send" },
   { label: "API + MCP", detail: "Build with LibreLeaf", href: "/developers", key: "developers" },
+  { label: "Documentation", detail: "Technical reference", href: "/docs", key: "docs" },
   { label: "Book tools", detail: "Readers and catalogues", href: "/resources", key: "resources" },
 ] as const;
 

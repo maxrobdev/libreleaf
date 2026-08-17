@@ -2,6 +2,8 @@
 
 Base URL: `https://libreleaf-books.netlify.app`
 
+Main-site reference: [`/docs/api`](https://libreleaf-books.netlify.app/docs/api/)
+
 The API is read-only, requires no key, and returns the same canonical works, offers, provenance, ranking reasons, and rights context used by the web interface and MCP server. The machine-readable contract is [`/openapi.json`](https://libreleaf-books.netlify.app/openapi.json).
 
 ## Version and compatibility
@@ -27,7 +29,7 @@ Each response is one page aggregated from independent source pages. Continue pas
 
 Works can expose more than one route type. For example, a canonical work may have a Gutenberg EPUB and a LibriVox audiobook. `counts` and the web filters count every attached offer type rather than only the work's primary action.
 
-`partial: true` means at least one source was slow, unavailable, deferred, or served stale data. Useful results from other sources remain valid. `sources`, `sourceHealth`, and `searchTiming` explain the state without exposing reader queries or upstream internals. A failed source's cursor does not advance, so the next page can retry it.
+`partial: true` means at least one source was slow, unavailable, deferred, or served stale data. Useful results from other sources remain valid. `sources`, `sourceHealth`, and `searchTiming` explain the state without exposing reader queries or upstream internals. All six source keys remain present. A failed source's cursor does not advance, so the next page can retry it.
 
 ## Resolve a work
 

@@ -47,6 +47,25 @@ It also writes `seed.ndjson.report.json`. The report records each query, pages f
 
 Canonical IDs are deduplicated across seed queries. Source records and distinct offers are unioned without discarding their individual rights claims. The checked-in query corpus is a small reproducible seed and judgement input, not a claim to contain an entire upstream catalogue. Full-catalogue importers should use reviewed source dumps or documented exhaustive source paging when available.
 
+## Import Project Gutenberg metadata
+
+Project Gutenberg publishes an official weekly catalogue CSV. Download it from the source, record the fetch time, then convert it to validated resolver-index NDJSON:
+
+```sh
+curl --fail --location \
+  https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv \
+  --output data/resolver-index/pg_catalog.csv
+
+npm run resolver:index:import:gutenberg -- \
+  --input data/resolver-index/pg_catalog.csv \
+  --output data/resolver-index/gutenberg.ndjson \
+  --fetched-at 2026-08-17T00:00:00Z
+```
+
+The importer also writes `gutenberg.ndjson.report.json`. It validates the exact official column contract, handles quoted multiline metadata, rejects duplicate record IDs, excludes non-text rows, and emits deterministic entries. `--max-records` creates an explicitly incomplete test import and exits with status `2`.
+
+The CSV's `Issued` field is Project Gutenberg's ebook release date, not the original print publication year, so it is not mapped to `year`. The feed does not prove that a current EPUB/PDF route is working and does not make a worldwide copyright determination. Offers remain empty until a current source refresh supplies a validated route and rights statement.
+
 Export every indexed table as deterministic JSON:
 
 ```sh
@@ -100,3 +119,4 @@ Production search still uses live adapters while scheduled importer coverage is 
 - [Node.js SQLite API](https://nodejs.org/download/release/latest-v22.x/docs/api/sqlite.html)
 - [SQLite FTS5](https://www.sqlite.org/fts5.html)
 - [SQLite JSON functions](https://www.sqlite.org/json1.html)
+- [Project Gutenberg machine-readable catalogues](https://www.gutenberg.org/ebooks/offline_catalogs.html)

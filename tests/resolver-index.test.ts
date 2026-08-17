@@ -4,6 +4,8 @@ import test from "node:test";
 import { parseIndexNdjson, ResolverIndex, validateIndexEntry } from "../lib/resolver-index/database.ts";
 import { resolveIndexHttpRequest } from "../lib/resolver-index/server.ts";
 import { buildResolverSnapshot } from "../lib/resolver-index/snapshot.ts";
+import { generateGutenbergCsvEntries, type GutenbergCsvReport } from "../lib/resolver-index/importers/gutenberg-csv.ts";
+import type { ResolverIndexEntry } from "../lib/resolver-index/types.ts";
 
 const fixtureText = readFileSync(new URL("../fixtures/resolver-index/sample.ndjson", import.meta.url), "utf8");
 const fixtureEntries = parseIndexNdjson(fixtureText);
@@ -14,6 +16,20 @@ function freshIndex() {
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function collectGutenberg(csv: string, maxRecords?: number) {
+  const iterator = generateGutenbergCsvEntries(csv, {
+    fetchedAt: "2026-08-17T17:38:00.000Z",
+    ...(maxRecords ? { maxRecords } : {}),
+  });
+  const entries: ResolverIndexEntry[] = [];
+  let next = iterator.next();
+  while (!next.done) {
+    entries.push(next.value);
+    next = iterator.next();
+  }
+  return { entries, report: next.value as GutenbergCsvReport };
 }
 
 test("a clean index ingests fixtures and resolves one canonical multi-source work", () => {
@@ -229,4 +245,39 @@ test("the snapshot builder reports repeated cursors as incomplete", async () => 
   assert.equal(result.report.queries[0]?.pages, 2);
   assert.match(result.report.queries[0]?.issue ?? "", /repeated a cursor/);
   assert.equal(result.entries.length, 1);
+});
+
+test("the official Gutenberg CSV importer handles multiline records without inventing rights or print years", () => {
+  const csv = `Text#,Type,Issued,Title,Language,Authors,Subjects,LoCC,Bookshelves\r\n84,Text,1993-10-01,"Frankenstein; Or, The Modern Prometheus\nA Gothic Novel",en,"Shelley, Mary Wollstonecraft, 1797-1851","Science fiction; Monsters -- Fiction",PR,"Gothic Fiction; Category: Novels"\r\n85,Image,1993-10-02,Example scan,en,,,NE,Images\r\n1952,Text,1999-11-01,"The ""Yellow"" Wallpaper",en,"Gilman, Charlotte Perkins, 1860-1935","Mental health; Feminism",PS,Short Stories\r\n`;
+  const { entries, report } = collectGutenberg(csv);
+  assert.equal(report.complete, true);
+  assert.equal(report.rowsRead, 3);
+  assert.equal(report.textRecords, 2);
+  assert.equal(report.skippedNonText, 1);
+  assert.equal(entries[0]?.work.title, "Frankenstein; Or, The Modern Prometheus: A Gothic Novel");
+  assert.deepEqual(entries[0]?.work.authors, ["Shelley, Mary Wollstonecraft"]);
+  assert.equal(entries[1]?.work.title, 'The "Yellow" Wallpaper');
+  assert.equal(entries.every((entry) => entry.work.year === undefined), true);
+  assert.equal(entries.every((entry) => entry.work.offers.length === 0), true);
+  assert.equal(entries.every((entry) => entry.work.sourceRecords[0]?.offers.length === 0), true);
+  assert.match(report.notes.join(" "), /United States-specific/);
+
+  const index = freshIndex();
+  try {
+    index.ingest(entries, "project-gutenberg-weekly-csv-v1");
+    const result = index.search("Mental health");
+    assert.equal(result.books[0]?.title, 'The "Yellow" Wallpaper');
+    assert.equal(result.books[0]?.indexProvenance[0]?.merge.algorithmVersion, "project-gutenberg-weekly-csv-v1");
+  } finally {
+    index.close();
+  }
+});
+
+test("a bounded Gutenberg CSV smoke import is explicitly incomplete", () => {
+  const csv = `Text#,Type,Issued,Title,Language,Authors,Subjects,LoCC,Bookshelves\n1,Text,1971-12-01,First,en,Author,Subject,A,Shelf\n2,Text,1972-12-01,Second,en,Author,Subject,A,Shelf\n`;
+  const { entries, report } = collectGutenberg(csv, 1);
+  assert.equal(entries.length, 1);
+  assert.equal(report.complete, false);
+  assert.equal(report.lastRecordId, "1");
+  assert.throws(() => collectGutenberg(csv.replace("Text#,Type", "id,type")), /Unexpected Project Gutenberg CSV header/);
 });

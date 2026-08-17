@@ -383,7 +383,7 @@ export const guides: Guide[] = [
     category: "Developers",
     author: "Max Robson",
     published: "2026-08-16",
-    updated: "2026-08-16",
+    updated: "2026-08-17",
     readingMinutes: 5,
     sections: [
       {
@@ -412,12 +412,12 @@ export const guides: Guide[] = [
       },
     ],
     references: [
-      { label: "LibreLeaf MCP specification", url: "https://github.com/maxrobdev/libreleaf/blob/main/docs/MCP.md" },
-      { label: "OpenAI MCP guidance", url: "https://developers.openai.com/api/docs/mcp" },
+      { label: "LibreLeaf MCP reference", url: "https://libreleaf-books.netlify.app/docs/mcp/" },
+      { label: "OpenAI MCP guidance", url: "https://developers.openai.com/api/docs/guides/tools-connectors-mcp" },
       { label: "Model Context Protocol", url: "https://modelcontextprotocol.io/" },
     ],
     related: ["use-libreleaf-api", "verify-book-source-licence-edition", "public-domain-uk-vs-us"],
-    action: { label: "Read the MCP documentation", href: "https://github.com/maxrobdev/libreleaf/blob/main/docs/MCP.md" },
+    action: { label: "Read the MCP documentation", href: "/docs/mcp" },
   },
   {
     slug: "use-libreleaf-api",
@@ -426,14 +426,14 @@ export const guides: Guide[] = [
     category: "Developers",
     author: "Max Robson",
     published: "2026-08-16",
-    updated: "2026-08-16",
+    updated: "2026-08-17",
     readingMinutes: 6,
     sections: [
       {
         heading: "Make a bounded search",
         paragraphs: [
-          "Send a GET request to /api/search with q for the query. The by parameter can select a broad query, title, author, or subject, and region accepts GB, US, or GLOBAL. Encode parameter values and keep the same q, by, and region for every page in one result sequence.",
-          "For example, /api/search?q=frankenstein&by=title&region=GB returns JSON containing books, source counts and status, a rights context, and an opaque nextCursor when more upstream pages may exist. Source timeouts or rate limits can produce useful partial results; inspect the source-status object instead of treating a smaller page as definitive exhaustion.",
+          "Send a GET request to /api/v1/search with q for the query. The by parameter can select a broad query, title, author, or subject, and region accepts GB, US, or GLOBAL. Encode parameter values and keep the same q, by, and region for every page in one result sequence.",
+          "For example, /api/v1/search?q=frankenstein&by=title&region=GB returns JSON containing books, source counts and status, a rights context, and an opaque nextCursor when more upstream pages may exist. Source timeouts or rate limits can produce useful partial results; inspect the source-status object instead of treating a smaller page as definitive exhaustion.",
         ],
       },
       {
@@ -459,7 +459,7 @@ export const guides: Guide[] = [
       { label: "LibreLeaf source policy", url: "https://github.com/maxrobdev/libreleaf/blob/main/docs/SOURCE_POLICY.md" },
     ],
     related: ["use-libreleaf-mcp", "verify-book-source-licence-edition", "find-open-access-academic-books"],
-    action: { label: "Open the developer reference", href: "/developers" },
+    action: { label: "Open the API reference", href: "/docs/api" },
   },
   {
     slug: "ebook-formats-epub-pdf-mobi-web",

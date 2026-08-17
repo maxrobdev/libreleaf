@@ -11,6 +11,8 @@ import { LibreSend } from "../components/LibreSend";
 import { ResourcesDirectory } from "../components/ResourcesDirectory";
 import SearchResultsPage from "../components/SearchResultsPage";
 import { getGuide } from "../content/guides";
+import { TechnicalDocArticle, TechnicalDocsHub } from "../components/TechnicalDocs";
+import { getTechnicalDoc } from "../content/technical-docs";
 import "../app/globals.css";
 import "./netlify.css";
 
@@ -25,6 +27,11 @@ function Route() {
   if (path.startsWith("/guides/")) {
     const guide = getGuide(path.slice("/guides/".length));
     return guide ? <><SiteNav active="guides" /><GuideArticle guide={guide} /></> : <><SiteNav active="guides" /><main className="status-card"><strong>Guide not found.</strong><p><a href="/guides">Open all guides</a></p></main></>;
+  }
+  if (path === "/docs") return <><SiteNav active="docs" /><TechnicalDocsHub /></>;
+  if (path.startsWith("/docs/")) {
+    const document = getTechnicalDoc(path.slice("/docs/".length));
+    return document ? <><SiteNav active="docs" /><TechnicalDocArticle document={document} /></> : <><SiteNav active="docs" /><main className="status-card"><strong>Documentation not found.</strong><p><a href="/docs">Open technical documentation</a></p></main></>;
   }
   if (path === "/developers") return <><SiteNav active="developers" /><Developers /></>;
   if (path === "/search") return <SearchResultsPage />;

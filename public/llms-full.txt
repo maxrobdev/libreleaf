@@ -1,0 +1,140 @@
+# LibreLeaf technical reference
+
+Updated: 2026-08-17
+Canonical site: https://libreleaf-books.netlify.app/
+Repository: https://github.com/maxrobdev/libreleaf
+
+## Purpose
+
+LibreLeaf resolves lawful routes to books. It searches official public-domain, library, open-access, national-library and audiobook catalogues. It groups matching catalogue records into a canonical work while retaining every source record and every source-provided access route.
+
+LibreLeaf does not proxy book files, remove access controls, or search Anna's Archive, LibGen, torrent indexes, shadow libraries, mirrors or download brokers. The MIT licence applies to LibreLeaf software, not to third-party books, covers, metadata or trademarks.
+
+## Production surfaces
+
+Web application: https://libreleaf-books.netlify.app/
+Technical documentation: https://libreleaf-books.netlify.app/docs/
+OpenAPI: https://libreleaf-books.netlify.app/openapi.json
+MCP: https://libreleaf-books.netlify.app/mcp
+GitHub: https://github.com/maxrobdev/libreleaf
+
+## Resolver sources
+
+1. Project Gutenberg through Gutendex: download and read routes. Its public-domain assessment is based on United States law.
+2. Open Library: work and edition records with source-controlled borrow and preview routes.
+3. Wikisource: source-hosted reading routes with work-specific public-domain or licence context.
+4. Directory of Open Access Books (DOAB): open-access monographs and publisher-supplied licence metadata.
+5. Library of Congress: digitised records and explicit files. LibreLeaf does not infer public-domain status from Library access.
+6. LibriVox: listen, RSS audio and MP3 routes. Its recording and source-text public-domain assessments are United States-specific.
+
+Each source has independent paging, timeout, cache, circuit and status state. One failed source does not remove useful results from another. A failed, stale or deferred source cursor does not advance.
+
+## Canonical works
+
+A work contains sourceRecords and offers. sourceRecords preserve original catalogue IDs, details URLs and source metadata. offers preserve source, access type, URL, format, language and source-specific rights evidence.
+
+Stable `llw1.*` IDs derive from normalized title and primary author. When author metadata is unavailable, the source identity remains part of the key. The same identity is used by browser permalinks, saved items, the API and MCP fetch.
+
+Exact shared identifiers or exact normalized title plus primary-author matches can cluster. Title-only and fuzzy matches remain separate when they could be translations, abridgements or adaptations. The resolver prefers duplicate records over a false merge.
+
+Ranking uses Reciprocal Rank Fusion over each catalogue position with k=60 and a small disclosed exact-title or exact-author signal. Results expose contributing ranks, method and plain-English reasons. Revenue and hidden model scores do not affect open-access ranking.
+
+## Rights model
+
+Access types are `download`, `read`, `listen`, `borrow` and `preview`. They are not interchangeable.
+
+Rights evidence statuses are source-assessed public domain, open licence, source-policy free or source-provided access. Offer applicability is `verified`, `source-jurisdiction-only` or `check-local`.
+
+The `region` parameter accepts `GB`, `US` or `GLOBAL`. It changes the explanation applied to source evidence. It is not geolocation, legal advice or an automated copyright determination. Language, server location and catalogue membership are not proof that an edition is lawful in a particular country.
+
+## HTTP API
+
+Base URL: https://libreleaf-books.netlify.app
+Version: 1
+Authentication: none
+Methods: GET and OPTIONS
+CORS: read-only browser clients allowed
+
+### Search
+
+`GET /api/v1/search?q={query}&by={q|title|author|subject}&region={GB|US|GLOBAL}&cursor={opaque}`
+
+An empty q returns a discovery page. Pass `nextCursor` back unchanged with the original q, by and region until it is null. There is no permanent 96-result stop. The response contains books, counts, upstreamTotals, partial, sources, sourceHealth, searchTiming, ranking and rightsContext.
+
+`partial: true` means at least one source was stale, deferred, timed out, rate-limited or unavailable. It does not invalidate books returned by healthy sources.
+
+### Work resolution
+
+`GET /api/v1/works/{llw1-work-id}?region=GB`
+
+This refreshes up to three catalogue pages looking for the stable work identity. A response states pagesSearched and exhausted. A 404 can mean the work is not currently returned inside the bounded refresh window.
+
+### Editions
+
+`GET /api/v1/editions?workKey=/works/OL45804W`
+
+This returns a bounded set of Open Library editions. Availability routes are checks, not guarantees. The endpoint does not assess copyright.
+
+### Lists
+
+`GET /api/v1/lists`
+
+This returns independent live-list states. Static curated lists are bundled with the web client and remain usable when all live feeds fail.
+
+### Errors and caching
+
+400 means invalid input. 404 means a work or edition was not resolved. 429, 502, 503 and 504 can represent temporary source failure. Clients should cache by query, mode, region and cursor, cache partial pages briefly, use exponential backoff and avoid exhaustive speculative crawling.
+
+Full schema: https://libreleaf-books.netlify.app/openapi.json
+
+## MCP server
+
+Endpoint: https://libreleaf-books.netlify.app/mcp
+Transport: Streamable HTTP
+Authentication: none
+Mutation: none
+
+Tools:
+
+- `search(query)`: citation-ready stable work IDs, titles and canonical LibreLeaf URLs.
+- `fetch(id)`: full resolver record for a stable ID, including provenance, routes and rights context.
+- `search_books(query, search_by?, limit?, region?)`: bounded structured search across all six sources; limit 1 to 20.
+- `resolve_access(title, author?, region?)`: one canonical match, every attached validated offer and an auditable ranking explanation.
+
+All tools are annotated readOnlyHint true, destructiveHint false and openWorldHint true. The server returns source links and metadata, not book text. `search` then `fetch` is the compatibility path for cited retrieval. `search_books` is for catalogue exploration. `resolve_access` is for a known work.
+
+Connecting the endpoint to an MCP-capable client and publishing a ChatGPT plugin listing are separate actions. Public listing requires OpenAI review and is not implied by this document.
+
+## Open resolver index
+
+The open reference index uses Node 22 SQLite and FTS5. It stores canonical works, source records, offers, merge decisions and refresh runs. It supports deterministic NDJSON ingestion, JSON/CSV export, local BM25 search and a loopback read-only service.
+
+The cursor snapshot builder records completeness, repeated cursors and source states. The Project Gutenberg weekly CSV importer imports official metadata but does not treat Gutenberg's ebook issue date as the original print year, does not invent current format URLs and does not infer worldwide rights.
+
+The index is not production-primary yet. Required cutover work includes scheduled full-source imports, checksums, freshness, source-specific tombstones, deployment storage and live availability fallback.
+
+Reference: https://libreleaf-books.netlify.app/docs/resolver-index/
+
+## LibreSend
+
+LibreSend provides local system share, local save and lawful-link handoff for EPUB, PDF and MOBI. These modes do not need a LibreLeaf server.
+
+The optional self-hosted relay encrypts the entire file in the sender's browser with AES-256-GCM, uploads only an opaque expiring envelope and places the key plus relay origin in the URL fragment. Retrieval is atomic and one-use. Reference storage can be memory, local filesystem or a reviewed custom adapter.
+
+The public LibreLeaf deployment does not operate a relay. A reader must explicitly connect a compatible self-hosted HTTPS relay. LibreSend does not claim proprietary Kindle or Kobo wireless integration.
+
+Reference: https://libreleaf-books.netlify.app/docs/libresend/
+
+## Briefleaf
+
+Briefleaf combines up to four reviewed publisher RSS or Atom feeds into a browser edition and EPUB. Registry entries use exact HTTPS feed URLs, publisher pages, terms pages and article-host allowlists. Arbitrary server-side feed URLs are not accepted.
+
+Briefleaf includes only headline, date, feed summary, publisher-supplied full-content RSS fields, source and original link. It never fetches article pages or bypasses paywalls. Summary-only feeds remain labelled as summaries.
+
+Fetches have per-source time and byte bounds, XML hardening, hostname validation, independent source state, fresh caching and stale-on-error fallback. EPUB output contains escaped XHTML, attribution and original links without JavaScript or remote assets. The generated File can be saved or passed to LibreSend from an explicit user action.
+
+Reference: https://libreleaf-books.netlify.app/docs/briefleaf/
+
+## Operational status
+
+Production search currently uses six live source adapters. The open resolver index is shipped for self-hosting and staged cutover work but is not the primary production read path. Public LibreSend relay operation is disabled. MCP and API access are public and read-only. Source availability can change and is represented per response rather than hidden.

@@ -10,6 +10,8 @@ type WikiPage = {
   title?: string;
   fullurl?: string;
   pagelanguage?: string;
+  categories?: Array<{ ns?: number; title?: string }>;
+  pageprops?: Record<string, unknown>;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -37,9 +39,23 @@ function normalisePages(payload: unknown): { pages: WikiPage[]; total: number | 
   return { pages: payload.query.pages as WikiPage[], total, nextOffset: continuation };
 }
 
+const BOOK_CATEGORY = /(?:\bnovels?\b|\bnovellas?\b|\bbooks?\b|\bcollections?\b|\bantholog(?:y|ies)\b|\bplays?\b|\bdramas?\b|\bpoetry\b|\bpoems?\b|\bfiction\b|\btreatises?\b|\bmanuals?\b|\b(?:auto)?biograph(?:y|ies)\b|\bmemoirs?\b|\bdictionar(?:y|ies)\b|\bencyclop(?:a|æ)edias?\b|\bepics?\b|\breligious texts?\b)/iu;
+const NON_BOOK_CATEGORY = /(?:disambiguation pages|versions pages|book reviews|films?\b|newspaper articles|magazine articles)/iu;
+
+function hasBookLevelSignal(page: WikiPage) {
+  if (page.title?.includes("/")) return false;
+  if (page.pageprops && "disambiguation" in page.pageprops) return false;
+  const categories = (page.categories ?? [])
+    .map((category) => category.title?.replace(/^Category:/u, "").trim() ?? "")
+    .filter(Boolean);
+  if (categories.some((category) => NON_BOOK_CATEGORY.test(category))) return false;
+  return categories.some((category) => BOOK_CATEGORY.test(category));
+}
+
 function bookForPage(page: WikiPage): NormalisedBook | undefined {
   if (!Number.isInteger(page.pageid) || page.ns !== 0 || typeof page.title !== "string" || !page.title.trim()) return undefined;
   if (typeof page.fullurl !== "string" || !page.fullurl.startsWith("https://en.wikisource.org/wiki/")) return undefined;
+  if (!hasBookLevelSignal(page)) return undefined;
 
   const language = page.pagelanguage === "en" ? "English" : page.pagelanguage;
   const rights = {
@@ -67,7 +83,7 @@ function bookForPage(page: WikiPage): NormalisedBook | undefined {
     detailsUrl: page.fullurl,
     language,
     clusterConfidence: "probable",
-    why: ["Matched an English Wikisource text with a free-to-read source page."],
+    why: ["Matched a book-level English Wikisource text with a direct free-to-read source page."],
     offers: [offer],
     sourceRecords: [{
       source: "Wikisource",
@@ -89,8 +105,10 @@ export const wikisourceAdapter: SourceAdapter = {
     url.searchParams.set("gsrnamespace", "0");
     url.searchParams.set("gsrlimit", String(PAGE_SIZE));
     url.searchParams.set("gsroffset", String(input.offset));
-    url.searchParams.set("prop", "info");
+    url.searchParams.set("prop", "info|categories|pageprops");
     url.searchParams.set("inprop", "url");
+    url.searchParams.set("clshow", "!hidden");
+    url.searchParams.set("cllimit", "max");
     url.searchParams.set("format", "json");
     url.searchParams.set("formatversion", "2");
     url.searchParams.set("origin", "*");

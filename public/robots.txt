@@ -1,10 +1,15 @@
 User-agent: OAI-SearchBot
 Allow: /
+Disallow: /api/
+Disallow: /mcp
 
 User-agent: ChatGPT-User
 Allow: /
+Disallow: /api/
 
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /mcp
 
 Sitemap: https://libreleaf-books.netlify.app/sitemap.xml

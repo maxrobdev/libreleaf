@@ -248,6 +248,10 @@ export function serialiseIndexNdjson(entriesInput: readonly unknown[]) {
   return `${entriesInput.map((entry) => stableJson(validateIndexEntry(entry))).join("\n")}\n`;
 }
 
+export function serialiseIndexEntry(entry: unknown) {
+  return `${stableJson(validateIndexEntry(entry))}\n`;
+}
+
 function rowString(row: SqlRow, name: string) {
   const value = row[name];
   return value === null || value === undefined ? undefined : String(value);

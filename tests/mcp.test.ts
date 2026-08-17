@@ -49,16 +49,20 @@ test("advertises standard research tools and focused resolver tools", async () =
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("access-control-allow-origin"), "*");
   const payload = await response.json() as {
-    result: { tools: Array<{ name: string; annotations: Record<string, boolean> }> };
+    result: { tools: Array<{ name: string; description: string; annotations: Record<string, boolean> }> };
   };
   assert.deepEqual(payload.result.tools.map((tool) => tool.name), ["search", "fetch", "search_books", "resolve_access"]);
   for (const tool of payload.result.tools) {
+    assert.match(tool.description, /^Use this when /);
     assert.deepEqual(tool.annotations, {
       readOnlyHint: true,
       destructiveHint: false,
       openWorldHint: true,
     });
   }
+  const structuredSearch = payload.result.tools.find((tool) => tool.name === "search_books");
+  assert.match(structuredSearch?.description ?? "", /LibriVox/);
+  assert.match(structuredSearch?.description ?? "", /listen/);
 });
 
 test("search and fetch expose stable citation-ready work records", async () => {

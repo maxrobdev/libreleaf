@@ -256,7 +256,7 @@
   width: 44px;
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 3px;
   background: rgba(255, 255, 255, .5);
   color: var(--ink);
   font-size: 8px;

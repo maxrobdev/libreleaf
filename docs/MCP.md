@@ -3,6 +3,8 @@
 LibreLeaf exposes a public, read-only MCP endpoint so ChatGPT, Codex, and other
 MCP clients can query the same catalogues as the web tool.
 
+Main-site reference: [`/docs/mcp`](https://libreleaf-books.netlify.app/docs/mcp/)
+
 ## Tool contract
 
 `search(query)` and `fetch(id)` implement OpenAI's read-only compatibility
@@ -85,6 +87,6 @@ label borrow, preview, read or listen records as downloads, and must not present
 a source-jurisdiction assessment as globally applicable.
 
 The standard tool shapes follow OpenAI's current
-[MCP compatibility guidance](https://developers.openai.com/api/docs/mcp), and
+[remote MCP guidance](https://developers.openai.com/api/docs/guides/tools-connectors-mcp), and
 the deployment checklist follows the current
 [plugin MCP server guidance](https://developers.openai.com/plugins/build/mcp-server#deploy-the-endpoint).

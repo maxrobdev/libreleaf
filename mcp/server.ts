@@ -522,7 +522,7 @@ export function createLibreLeafMcpServer(dependencies: SearchDependencies = {}) 
     {
       title: "Search LibreLeaf works",
       description:
-        "Search LibreLeaf's public book catalogues for citation-ready work records. Use fetch with a returned ID to retrieve the complete resolver record and access routes.",
+        "Use this when a user needs citation-ready LibreLeaf work records from lawful public-domain, library and open-access catalogues. Follow with fetch for complete provenance and routes. Do not use it to find unauthorised copies or retrieve book text.",
       inputSchema: {
         query: z.string().trim().min(1).max(120).describe("Book title, author, subject, or keywords."),
       },
@@ -552,7 +552,7 @@ export function createLibreLeafMcpServer(dependencies: SearchDependencies = {}) 
     {
       title: "Fetch a LibreLeaf work",
       description:
-        "Fetch one citation-ready LibreLeaf resolver record by the stable ID returned from search, including provenance, rights context, and validated access routes.",
+        "Use this when search returned a stable LibreLeaf ID and the user needs the complete citation-ready resolver record, provenance, rights context and validated routes. Do not use an invented or non-LibreLeaf ID.",
       inputSchema: {
         id: z.string().min(WORK_ID_PREFIX.length + 4).max(MAX_WORK_ID_LENGTH).describe("Stable LibreLeaf work ID returned by search."),
       },
@@ -582,7 +582,7 @@ export function createLibreLeafMcpServer(dependencies: SearchDependencies = {}) 
     {
       title: "Search open books",
       description:
-        "Search Project Gutenberg, Open Library, Wikisource, DOAB and the Library of Congress by keywords, title, author, or subject. Returns source-labelled download, borrow, preview and read routes with rights context.",
+        "Use this when a user wants a bounded structured search of Project Gutenberg, Open Library, Wikisource, DOAB, the Library of Congress and LibriVox by keywords, title, author or subject. Returns source-labelled download, read, listen, borrow and preview routes. Do not relabel controlled access or infer global rights.",
       inputSchema: {
         query: z.string().trim().min(1).max(120).describe("Book title, author, subject, or keywords."),
         search_by: searchBySchema
@@ -649,7 +649,7 @@ export function createLibreLeafMcpServer(dependencies: SearchDependencies = {}) 
     {
       title: "Resolve book access",
       description:
-        "Resolve a title to one canonical best match and return every validated, source-labelled access route. Optional author disambiguates works; region controls rights context without making a legal determination.",
+        "Use this when a user names one work and needs its canonical best match plus every validated, source-labelled access route and ranking explanation. Optional author disambiguates works; region changes rights context, not legal status. Do not use it for broad subject discovery.",
       inputSchema: {
         title: z.string().trim().min(1).max(120).describe("Book title to resolve."),
         author: z.string().trim().min(1).max(120).optional().describe("Optional author for disambiguation."),

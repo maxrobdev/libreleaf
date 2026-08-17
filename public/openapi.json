@@ -8,6 +8,7 @@
     "contact": { "name": "LibreLeaf", "url": "https://github.com/maxrobdev/libreleaf" }
   },
   "servers": [{ "url": "https://libreleaf-books.netlify.app" }],
+  "externalDocs": { "description": "LibreLeaf technical documentation", "url": "https://libreleaf-books.netlify.app/docs/api/" },
   "paths": {
     "/api/v1/search": {
       "get": {
@@ -27,7 +28,7 @@
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SearchResponse" } } }
           },
           "400": { "$ref": "#/components/responses/BadRequest" },
-          "502": { "$ref": "#/components/responses/SourceFailure" }
+          "502": { "$ref": "#/components/responses/SearchSourceFailure" }
         }
       },
       "options": { "$ref": "#/components/pathItems/Options" }
@@ -99,6 +100,7 @@
     "responses": {
       "BadRequest": { "description": "Invalid input.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
       "NotFound": { "description": "No matching work or edition.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "SearchSourceFailure": { "description": "Every attempted search source was temporarily unavailable. The source cursor is unchanged and can be retried.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SearchFailure" } } } },
       "SourceFailure": { "description": "Source timeout, rate limit or temporary unavailability.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
     },
     "schemas": {
@@ -130,6 +132,14 @@
           "rights": { "$ref": "#/components/schemas/Rights" }
         }
       },
+      "Format": {
+        "type": "object",
+        "required": ["label", "url"],
+        "properties": {
+          "label": { "type": "string" },
+          "url": { "type": "string", "format": "uri" }
+        }
+      },
       "SourceRecord": {
         "type": "object",
         "required": ["source", "recordId", "detailsUrl", "offers"],
@@ -155,7 +165,7 @@
       },
       "Work": {
         "type": "object",
-        "required": ["id", "title", "authors", "source", "access", "detailsUrl", "clusterConfidence", "why", "offers", "sourceRecords", "canonicalId", "canonicalUrl"],
+        "required": ["id", "title", "authors", "source", "access", "formats", "detailsUrl", "clusterConfidence", "why", "offers", "sourceRecords", "canonicalId", "canonicalUrl"],
         "properties": {
           "id": { "type": "string" },
           "canonicalId": { "type": "string", "pattern": "^llw1\\." },
@@ -166,6 +176,7 @@
           "cover": { "type": "string", "format": "uri" },
           "source": { "type": "string" },
           "access": { "$ref": "#/components/schemas/Access" },
+          "formats": { "type": "array", "items": { "$ref": "#/components/schemas/Format" } },
           "detailsUrl": { "type": "string", "format": "uri" },
           "workKey": { "type": "string" },
           "language": { "type": "string" },
@@ -188,9 +199,41 @@
           "circuit": { "type": "string", "enum": ["closed", "open"] }
         }
       },
+      "SourceStatuses": {
+        "type": "object",
+        "required": ["gutenberg", "openLibrary", "wikisource", "doab", "libraryOfCongress", "librivox"],
+        "properties": {
+          "gutenberg": { "$ref": "#/components/schemas/SourceStatus" },
+          "openLibrary": { "$ref": "#/components/schemas/SourceStatus" },
+          "wikisource": { "$ref": "#/components/schemas/SourceStatus" },
+          "doab": { "$ref": "#/components/schemas/SourceStatus" },
+          "libraryOfCongress": { "$ref": "#/components/schemas/SourceStatus" },
+          "librivox": { "$ref": "#/components/schemas/SourceStatus" }
+        }
+      },
+      "SourceHealthMap": {
+        "type": "object",
+        "required": ["gutenberg", "openLibrary", "wikisource", "doab", "libraryOfCongress", "librivox"],
+        "properties": {
+          "gutenberg": { "$ref": "#/components/schemas/SourceHealth" },
+          "openLibrary": { "$ref": "#/components/schemas/SourceHealth" },
+          "wikisource": { "$ref": "#/components/schemas/SourceHealth" },
+          "doab": { "$ref": "#/components/schemas/SourceHealth" },
+          "libraryOfCongress": { "$ref": "#/components/schemas/SourceHealth" },
+          "librivox": { "$ref": "#/components/schemas/SourceHealth" }
+        }
+      },
+      "SearchTiming": {
+        "type": "object",
+        "required": ["firstResultsBudgetMs", "totalMs"],
+        "properties": {
+          "firstResultsBudgetMs": { "type": "integer", "minimum": 0 },
+          "totalMs": { "type": "integer", "minimum": 0 }
+        }
+      },
       "SearchResponse": {
         "type": "object",
-        "required": ["query", "books", "counts", "nextCursor", "upstreamTotals", "partial", "sources", "rightsContext"],
+        "required": ["query", "books", "counts", "nextCursor", "upstreamTotals", "partial", "sources", "sourceHealth", "searchTiming", "ranking", "rightsContext"],
         "properties": {
           "query": { "type": "string" },
           "books": { "type": "array", "items": { "$ref": "#/components/schemas/Work" } },
@@ -198,9 +241,9 @@
           "nextCursor": { "type": ["string", "null"] },
           "upstreamTotals": { "type": "object", "additionalProperties": { "type": ["integer", "null"] } },
           "partial": { "type": "boolean" },
-          "sources": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/SourceStatus" } },
-          "sourceHealth": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/SourceHealth" } },
-          "searchTiming": { "type": "object", "properties": { "firstResultsBudgetMs": { "type": "integer" }, "totalMs": { "type": "integer" } } },
+          "sources": { "$ref": "#/components/schemas/SourceStatuses" },
+          "sourceHealth": { "$ref": "#/components/schemas/SourceHealthMap" },
+          "searchTiming": { "$ref": "#/components/schemas/SearchTiming" },
           "ranking": { "type": "object", "additionalProperties": true },
           "rightsContext": { "$ref": "#/components/schemas/RightsContext" }
         }
@@ -221,6 +264,17 @@
           "partial": { "type": "boolean" },
           "sources": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/SourceStatus" } },
           "resolution": { "type": "object", "required": ["pagesSearched", "exhausted"], "properties": { "pagesSearched": { "type": "integer" }, "exhausted": { "type": "boolean" } } }
+        }
+      },
+      "SearchFailure": {
+        "type": "object",
+        "required": ["error", "nextCursor", "sources", "sourceHealth", "searchTiming"],
+        "properties": {
+          "error": { "type": "string" },
+          "nextCursor": { "type": "string" },
+          "sources": { "$ref": "#/components/schemas/SourceStatuses" },
+          "sourceHealth": { "$ref": "#/components/schemas/SourceHealthMap" },
+          "searchTiming": { "$ref": "#/components/schemas/SearchTiming" }
         }
       },
       "Error": {

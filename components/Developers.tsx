@@ -24,10 +24,11 @@ export function Developers() {
         <p>DEVELOPERS</p>
         <h1>Resolver API.</h1>
         <div className={styles.heroLinks}>
+          <a href="/docs">Technical docs</a>
           <a href="/openapi.json">OpenAPI JSON</a>
-          <a href="https://github.com/maxrobdev/libreleaf/blob/main/docs/API.md" target="_blank" rel="noreferrer">API notes ↗</a>
+          <a href="/docs/api">API reference</a>
           <a href="/mcp">MCP endpoint</a>
-          <a href="https://github.com/maxrobdev/libreleaf/blob/main/docs/LIBRESEND.md" target="_blank" rel="noreferrer">LibreSend framework ↗</a>
+          <a href="/docs/mcp">MCP reference</a>
         </div>
       </header>
 
@@ -81,7 +82,7 @@ export function Developers() {
         </div>
         <div>
           <code>https://libreleaf-books.netlify.app/mcp</code>
-          <a href="/guides/use-libreleaf-mcp">Setup guide →</a>
+          <a href="/docs/mcp">Protocol and tools →</a>
         </div>
       </section>
 
@@ -92,7 +93,7 @@ export function Developers() {
         </div>
         <div>
           <code>SDK · Node · Docker · host extensions</code>
-          <a href="https://github.com/maxrobdev/libreleaf/blob/main/docs/LIBRESEND.md" target="_blank" rel="noreferrer">Framework and deployment ↗</a>
+          <a href="/docs/libresend">Framework and deployment →</a>
         </div>
       </section>
     </main>

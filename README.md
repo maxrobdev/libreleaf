@@ -5,7 +5,7 @@ Open-source search for lawful, free-to-read books.
 [![CI](https://github.com/maxrobdev/libreleaf/actions/workflows/ci.yml/badge.svg)](https://github.com/maxrobdev/libreleaf/actions/workflows/ci.yml)
 [![MIT Licence](https://img.shields.io/badge/licence-MIT-214c38.svg)](LICENSE)
 
-[Use LibreLeaf](https://libreleaf-books.netlify.app/) · [Report an issue](https://github.com/maxrobdev/libreleaf/issues)
+[Use LibreLeaf](https://libreleaf-books.netlify.app/) · [Technical documentation](https://libreleaf-books.netlify.app/docs/) · [Report an issue](https://github.com/maxrobdev/libreleaf/issues)
 
 LibreLeaf resolves one work across [Project Gutenberg](https://www.gutenberg.org/), [Open Library](https://openlibrary.org/), [Wikisource](https://wikisource.org/), [DOAB](https://www.doabooks.org/), the [Library of Congress](https://www.loc.gov/) and [LibriVox](https://librivox.org/). It keeps every source record and labels download, read, listen, borrow and preview routes separately.
 
@@ -118,6 +118,8 @@ tests/                    # route, source, MCP, SEO and rendered-output tests
 LibreSend is local-only by default. Its optional self-hosted relay receives client-encrypted, expiring, one-use envelopes and is deliberately disabled on the public LibreLeaf deployment. The repository includes a portable Fetch handler, memory and atomic filesystem stores, privacy-bounded relay modules, custom browser transports, a Node server, hardened Docker Compose deployment and headless SDK entry point. Operators can mount one reviewed local host extension for custom storage, policy and lifecycle code; remote loading and hot reload are excluded. See the [LibreSend guide](docs/LIBRESEND.md) and [extension contract](docs/LIBRESEND_EXTENSIONS.md).
 
 LibreLeaf uses React 19, TypeScript, vinext, Vite, Netlify Functions and Netlify Edge Functions. Saved books remain in `localStorage`; there is no account database or tracking profile. See [Architecture](docs/ARCHITECTURE.md) and the [source policy](docs/SOURCE_POLICY.md).
+
+The main site publishes crawlable technical references for the [API](https://libreleaf-books.netlify.app/docs/api/), [MCP server](https://libreleaf-books.netlify.app/docs/mcp/), [resolver model](https://libreleaf-books.netlify.app/docs/resolver/), [open index](https://libreleaf-books.netlify.app/docs/resolver-index/), [LibreSend](https://libreleaf-books.netlify.app/docs/libresend/) and [Briefleaf](https://libreleaf-books.netlify.app/docs/briefleaf/). `/openapi.json`, `/llms.txt` and `/llms-full.txt` provide machine-readable entry points; they improve discovery but do not guarantee inclusion in any search or AI product.
 
 ## Data, rights, and attribution
 

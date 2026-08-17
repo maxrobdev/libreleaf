@@ -10,6 +10,7 @@ const pages = [
   { file: "netlify/send/index.html", path: "/send", title: "LibreSend — Local and encrypted ebook handoff | LibreLeaf" },
   { file: "netlify/guides/index.html", path: "/guides", title: "Ebook and open reading guides | LibreLeaf" },
   { file: "netlify/developers/index.html", path: "/developers", title: "Open book resolver API and MCP | LibreLeaf" },
+  { file: "netlify/docs/index.html", path: "/docs", title: "Technical documentation | LibreLeaf" },
   { file: "netlify/about/index.html", path: "/about", title: "About the open-source resolver | LibreLeaf" },
   { file: "netlify/resources/index.html", path: "/resources", title: "Open ebook tools and UK library resources | LibreLeaf" },
 ];
@@ -55,6 +56,14 @@ test("the static sitemap covers every public route", async () => {
     "/guides/ebook-formats-epub-pdf-mobi-web/",
     "/guides/verify-book-source-licence-edition/",
     "/developers/",
+    "/docs/",
+    "/docs/api/",
+    "/docs/mcp/",
+    "/docs/resolver/",
+    "/docs/source-rights/",
+    "/docs/resolver-index/",
+    "/docs/libresend/",
+    "/docs/briefleaf/",
     "/about/",
     "/resources/",
     "/privacy",
@@ -63,4 +72,10 @@ test("the static sitemap covers every public route", async () => {
     const url = `https://libreleaf-books.netlify.app${path}`;
     assert.ok(sitemap.includes(`<loc>${url}</loc>`), `${url} missing from sitemap`);
   }
+});
+
+test("OpenAI search crawling can reach docs without crawling resolver traffic", async () => {
+  const robots = await readFile(new URL("../public/robots.txt", import.meta.url), "utf8");
+  assert.match(robots, /User-agent: OAI-SearchBot\nAllow: \/\nDisallow: \/api\/\nDisallow: \/mcp/);
+  assert.doesNotMatch(robots, /Disallow: \/docs/);
 });

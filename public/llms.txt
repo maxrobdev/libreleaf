@@ -1,0 +1,42 @@
+# LibreLeaf
+
+> LibreLeaf is an open-source work-level resolver for lawful book access. It clusters canonical works across official catalogues and retains source provenance, access type, rights context and ranking reasons.
+
+Production: https://libreleaf-books.netlify.app/
+Source: https://github.com/maxrobdev/libreleaf
+Licence: MIT for the software; linked books and third-party metadata retain their own terms.
+
+## Technical documentation
+
+- [Documentation hub](https://libreleaf-books.netlify.app/docs/): Human-readable technical reference.
+- [Resolver API](https://libreleaf-books.netlify.app/docs/api/): Versioned endpoints, paging, fields, errors and caching.
+- [MCP server](https://libreleaf-books.netlify.app/docs/mcp/): Public Streamable HTTP endpoint, tools and client guidance.
+- [Resolver architecture](https://libreleaf-books.netlify.app/docs/resolver/): Canonical identity, clustering and explainable ranking.
+- [Sources and rights](https://libreleaf-books.netlify.app/docs/source-rights/): Official sources, access labels and jurisdiction model.
+- [Open resolver index](https://libreleaf-books.netlify.app/docs/resolver-index/): Self-hosted SQLite/FTS5 index and production status.
+- [LibreSend](https://libreleaf-books.netlify.app/docs/libresend/): Local handoff and optional self-hosted encrypted relay.
+- [Briefleaf](https://libreleaf-books.netlify.app/docs/briefleaf/): Reviewed RSS selection, reading and EPUB generation.
+
+## Machine interfaces
+
+- [OpenAPI 3.1](https://libreleaf-books.netlify.app/openapi.json): Public HTTP API contract.
+- [MCP endpoint](https://libreleaf-books.netlify.app/mcp): Public read-only Streamable HTTP server.
+- [Full plain-text reference](https://libreleaf-books.netlify.app/llms-full.txt): Bounded consolidated project and contract summary.
+- [Sitemap](https://libreleaf-books.netlify.app/sitemap.xml): Indexable public pages.
+
+## Core API
+
+- `GET /api/v1/search`: Search Project Gutenberg, Open Library, Wikisource, DOAB, Library of Congress and LibriVox. Pass `nextCursor` unchanged until null.
+- `GET /api/v1/works/{workId}`: Resolve one stable `llw1.*` canonical work.
+- `GET /api/v1/editions?workKey=/works/OL…W`: Load a bounded Open Library edition set.
+- `GET /api/v1/lists`: Read independent live-list source states.
+
+## Important interpretation rules
+
+- download, read, listen, borrow and preview are distinct access types.
+- `GB`, `US` and `GLOBAL` select source-rights context; they are not legal clearance.
+- Project Gutenberg and LibriVox public-domain assessments are US-specific unless an offer carries separate applicable evidence.
+- A partial response can contain useful results; inspect per-source status and keep failed cursors unchanged.
+- LibreLeaf excludes shadow libraries, torrent indexes, mirrors and download brokers.
+- The open resolver index is self-hostable but is not yet the production-primary search path.
+- The public LibreLeaf deployment does not operate a file relay.
