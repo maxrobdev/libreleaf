@@ -30,6 +30,23 @@ curl 'http://127.0.0.1:8789/v1/search?q=Frankenstein&region=GB'
 
 The default bind is loopback. If you deliberately bind it publicly, terminate TLS and add authentication and rate limits at a reverse proxy. The service is read-only and exposes `/v1/status` and bounded `/v1/search` only.
 
+## Build a resolver snapshot
+
+The snapshot tool pages LibreLeaf's public resolver with an explicit query corpus and emits import-ready NDJSON:
+
+```sh
+npm run resolver:index:snapshot -- \
+  --endpoint https://libreleaf-books.netlify.app/api/v1/search \
+  --queries fixtures/resolver-index/seed-queries.json \
+  --output data/resolver-index/seed.ndjson \
+  --region GB \
+  --max-pages 100
+```
+
+It also writes `seed.ndjson.report.json`. The report records each query, pages fetched, works seen, final source states and whether its cursor was exhausted. Repeated cursors, request failures and page limits make `complete` false and give the CLI exit code `2`; an incomplete snapshot remains inspectable but must not be published as complete.
+
+Canonical IDs are deduplicated across seed queries. Source records and distinct offers are unioned without discarding their individual rights claims. The checked-in query corpus is a small reproducible seed and judgement input, not a claim to contain an entire upstream catalogue. Full-catalogue importers should use reviewed source dumps or documented exhaustive source paging when available.
+
 Export every indexed table as deterministic JSON:
 
 ```sh
@@ -74,6 +91,7 @@ An optional PostgreSQL or dedicated search adapter can be added later, but it mu
 - Import files should be kept long enough to reproduce a release snapshot; published index builds should include their input checksum.
 - Removal and tombstone policy is not automated yet. Until a reviewed source-specific policy exists, absence from one refresh is not treated as proof that an access route disappeared.
 - Local database files live under `data/resolver-index/` and are ignored by Git. Migrations and sample inputs are versioned.
+- Scheduled jobs should archive the NDJSON, report and checksum together. A report with `complete: false` may refresh known records but must not drive absence-based removal.
 
 Production search still uses live adapters while scheduled importer coverage is built. The indexed path will be introduced as a primary read only after freshness, tombstones and deployment storage are verified; live adapters will remain as refresh and availability fallbacks.
 

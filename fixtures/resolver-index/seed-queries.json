@@ -1,0 +1,12 @@
+[
+  { "query": "classic fiction", "by": "subject" },
+  { "query": "history", "by": "subject" },
+  { "query": "philosophy", "by": "subject" },
+  { "query": "science", "by": "subject" },
+  { "query": "politics", "by": "subject" },
+  { "query": "poetry", "by": "subject" },
+  { "query": "children", "by": "subject" },
+  { "query": "short stories", "by": "subject" },
+  { "query": "open access", "by": "q" },
+  { "query": "public domain", "by": "q" }
+]

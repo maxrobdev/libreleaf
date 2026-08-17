@@ -13,6 +13,7 @@
     "libresend:extension:check": "node --experimental-strip-types tools/libresend-relay/check-extension.ts",
     "resolver:index": "node --import tsx tools/resolver-index/cli.ts",
     "resolver:index:serve": "node --import tsx tools/resolver-index/server.ts",
+    "resolver:index:snapshot": "node --import tsx tools/resolver-index/snapshot.ts",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs && npm run test:seo && npm run test:guides && npm run test:identity && npm run test:search && npm run test:editions && npm run test:libresend && npm run test:brief && npm run test:lists && npm run test:mcp && npm run test:index",
     "test:seo": "node --test tests/netlify-seo.test.mjs",

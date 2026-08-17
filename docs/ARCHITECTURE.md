@@ -36,7 +36,7 @@ An offer can be source-assessed public domain, openly licensed, source-policy fr
 
 `db/resolver/migrations/` and `lib/resolver-index/` contain the open local reference index. It separates canonical works, original source records, access offers, source-specific rights statements and merge decisions. The checked-in NDJSON fixture can build a local SQLite/FTS5 index, search it and export every table as JSON or CSV without Netlify or a hosted database. See [RESOLVER_INDEX.md](RESOLVER_INDEX.md).
 
-This is not yet the production primary read path. Live source adapters remain active while scheduled imports, freshness and source-specific tombstone policies are completed. The index is designed to become the primary catalogue layer without removing live refresh and availability checks.
+This is not yet the production primary read path. The bounded snapshot builder can exhaust resolver cursors for a versioned query corpus, merge repeated canonical works and report incomplete/stuck crawls without claiming completion. Live source adapters remain active while full-catalogue imports, freshness and source-specific tombstone policies are completed. The index is designed to become the primary catalogue layer without removing live refresh and availability checks.
 
 ## State and caching
 

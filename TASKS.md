@@ -336,7 +336,7 @@ Every substantive product request from the build conversation is represented bel
 - Use live adapters for refresh and availability checks, not as the only copy of catalogue metadata. Failed refreshes keep the last known record with visible freshness.
 - Evaluate PostgreSQL full-text search plus a replaceable optional search engine; do not make ranking dependent on a closed model or vendor-only feature.
 - Acceptance: a clean self-hosted install can ingest fixtures, build the canonical index, search locally, export its data, and reproduce every merge/rank explanation.
-- Shipped locally: checked-in SQLite/FTS5 migration; validated deterministic NDJSON importer; source-record-level refresh safety; failed-refresh audit; local search explanations; complete deterministic JSON/CSV exports; fixture and regression suite. Remaining: scheduled full-source snapshot importers, reviewed tombstones/freshness UI, deployment storage and primary-read cutover with live fallback.
+- Shipped locally: checked-in SQLite/FTS5 migration; validated deterministic NDJSON importer; source-record-level refresh safety; failed-refresh audit; local search explanations; complete deterministic JSON/CSV exports; loopback read service; cursor-exhausting query-snapshot builder with canonical deduplication and honest incomplete-run reports; fixture and regression suite. Remaining: reviewed full-catalogue source importers/dumps, tombstones/freshness UI, deployment storage and primary-read cutover with live fallback.
 
 ### LL-018 · Source expansion programme (v0.2)
 

@@ -243,6 +243,11 @@ export function parseIndexNdjson(text: string) {
   });
 }
 
+export function serialiseIndexNdjson(entriesInput: readonly unknown[]) {
+  if (entriesInput.length > MAX_ENTRIES) throw new Error(`Index output exceeds ${MAX_ENTRIES} entries.`);
+  return `${entriesInput.map((entry) => stableJson(validateIndexEntry(entry))).join("\n")}\n`;
+}
+
 function rowString(row: SqlRow, name: string) {
   const value = row[name];
   return value === null || value === undefined ? undefined : String(value);

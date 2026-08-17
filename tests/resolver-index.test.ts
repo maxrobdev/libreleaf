@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { parseIndexNdjson, ResolverIndex, validateIndexEntry } from "../lib/resolver-index/database.ts";
 import { resolveIndexHttpRequest } from "../lib/resolver-index/server.ts";
+import { buildResolverSnapshot } from "../lib/resolver-index/snapshot.ts";
 
 const fixtureText = readFileSync(new URL("../fixtures/resolver-index/sample.ndjson", import.meta.url), "utf8");
 const fixtureEntries = parseIndexNdjson(fixtureText);
@@ -171,4 +172,61 @@ test("the self-hosted service exposes bounded read-only status and search", () =
   } finally {
     index.close();
   }
+});
+
+test("the snapshot builder pages to exhaustion and merges canonical records across queries", async () => {
+  const full = clone(fixtureEntries[0].work);
+  const gutenberg = { ...clone(full), sourceRecords: [clone(full.sourceRecords[0]!)], source: "Project Gutenberg" };
+  const librivox = { ...clone(full), sourceRecords: [clone(full.sourceRecords[1]!)], source: "LibriVox" };
+  const calls: string[] = [];
+  const fetcher = (async (input: string | URL | Request) => {
+    const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+    calls.push(url.toString());
+    const query = url.searchParams.get("q");
+    const cursor = url.searchParams.get("cursor");
+    const value = query === "Frankenstein" && !cursor
+      ? { books: [gutenberg], nextCursor: "page_two", sources: { gutenberg: "ok", librivox: "timeout" } }
+      : query === "Frankenstein"
+        ? { books: [librivox], nextCursor: null, sources: { gutenberg: "exhausted", librivox: "ok" } }
+        : { books: [full], nextCursor: null, sources: { gutenberg: "ok", librivox: "ok" } };
+    return new Response(JSON.stringify(value), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+
+  const result = await buildResolverSnapshot({
+    endpoint: "https://resolver.example/api/v1/search",
+    queries: [
+      { query: "Frankenstein", by: "title" },
+      { query: "gothic", by: "subject" },
+    ],
+    fetchedAt: "2026-08-17T12:00:00.000Z",
+    maxPagesPerQuery: 10,
+    fetcher,
+  });
+  assert.equal(calls.length, 3);
+  assert.equal(result.report.complete, true);
+  assert.equal(result.report.pagesFetched, 3);
+  assert.equal(result.entries.length, 1);
+  assert.deepEqual(result.entries[0]?.searchTerms, ["Frankenstein", "gothic"]);
+  assert.deepEqual(result.entries[0]?.work.sourceRecords.map((record) => record.source), ["LibriVox", "Project Gutenberg"]);
+  assert.equal(result.entries[0]?.merge.method, "resolver-exact-cluster");
+});
+
+test("the snapshot builder reports repeated cursors as incomplete", async () => {
+  const book = clone(fixtureEntries[1].work);
+  const fetcher = (async () => new Response(JSON.stringify({
+    books: [book],
+    nextCursor: "stuck_cursor",
+    sources: { gutenberg: "timeout" },
+  }), { status: 200 })) as typeof fetch;
+  const result = await buildResolverSnapshot({
+    endpoint: "https://resolver.example/api/v1/search",
+    queries: [{ query: "short stories", by: "subject" }],
+    fetchedAt: "2026-08-17T12:00:00.000Z",
+    maxPagesPerQuery: 5,
+    fetcher,
+  });
+  assert.equal(result.report.complete, false);
+  assert.equal(result.report.queries[0]?.pages, 2);
+  assert.match(result.report.queries[0]?.issue ?? "", /repeated a cursor/);
+  assert.equal(result.entries.length, 1);
 });
