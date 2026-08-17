@@ -170,6 +170,11 @@ function tag(entry: string, names: string[]) {
   return "";
 }
 
+function unprefixedTag(entry: string, name: string) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return entry.match(new RegExp(`<${escaped}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${escaped}>`, "i"))?.[1] ?? "";
+}
+
 function linkFromEntry(entry: string) {
   const rssLink = tag(entry, ["link"]);
   if (rssLink && /^\s*(?:<!\[CDATA\[)?https?:/i.test(rssLink)) return plainText(rssLink);
@@ -224,16 +229,21 @@ export function parseBriefFeed(xml: string, feed: BriefFeed): BriefItem[] {
     const url = allowedHttpsUrl(linkFromEntry(entry), feed.articleHosts);
     if (!title || !url || seen.has(url)) continue;
     seen.add(url);
+    const rawSummary = tag(entry, ["description", "summary"]);
     const summary = clipped(
-      tag(entry, ["description", "summary"]),
+      rawSummary,
       BRIEF_LIMITS.summaryCharacters,
       BRIEF_LIMITS.summaryWords,
     );
-    const suppliedContent = clippedContent(
-      tag(entry, ["encoded", "content"]),
+    const encodedContent = clippedContent(
+      tag(entry, ["encoded"]) || unprefixedTag(entry, "content"),
       BRIEF_LIMITS.contentCharacters,
     );
-    const content = suppliedContent && plainText(suppliedContent) !== plainText(summary)
+    const descriptionContent = clippedContent(rawSummary, BRIEF_LIMITS.contentCharacters);
+    const suppliedContent = [encodedContent, descriptionContent]
+      .filter(Boolean)
+      .sort((left, right) => right.length - left.length)[0] ?? "";
+    const content = suppliedContent.length >= 80 && suppliedContent.length > summary.length + 20
       ? suppliedContent
       : undefined;
     items.push({
@@ -424,15 +434,23 @@ export async function aggregateBriefSelection(
   if (!feeds.length) throw new BriefSelectionError("This country and topic combination is not available.");
   const now = (dependencies.now ?? (() => new Date()))();
   const results = await Promise.all(feeds.map((feed) => loadFeed(feed, dependencies, now)));
-  const deduplicated = new Map<string, BriefItem>();
-  for (const result of results) {
-    for (const item of result.items) {
-      if (!deduplicated.has(item.url)) deduplicated.set(item.url, item);
+  const feedsByRecency = results.map((result) => [...result.items]
+    .sort((left, right) => (Date.parse(right.publishedAt ?? "") || 0) - (Date.parse(left.publishedAt ?? "") || 0)));
+  const seenUrls = new Set<string>();
+  const items: BriefItem[] = [];
+  for (let itemIndex = 0; items.length < BRIEF_LIMITS.resultItems; itemIndex += 1) {
+    let foundAtThisIndex = false;
+    for (const feedItems of feedsByRecency) {
+      const item = feedItems[itemIndex];
+      if (!item) continue;
+      foundAtThisIndex = true;
+      if (seenUrls.has(item.url)) continue;
+      seenUrls.add(item.url);
+      items.push(item);
+      if (items.length === BRIEF_LIMITS.resultItems) break;
     }
+    if (!foundAtThisIndex) break;
   }
-  const items = [...deduplicated.values()]
-    .sort((left, right) => (Date.parse(right.publishedAt ?? "") || 0) - (Date.parse(left.publishedAt ?? "") || 0))
-    .slice(0, BRIEF_LIMITS.resultItems);
   const sources = results.map((result) => result.source);
   const editionTitle = selected.preset
     ? `${BRIEF_TOPIC_LABELS[topic]} · ${BRIEF_COUNTRY_LABELS[country]}`

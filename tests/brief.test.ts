@@ -45,6 +45,14 @@ const rss = `<?xml version="1.0" encoding="utf-8"?>
   <item><title>Untrusted link</title><link>https://attacker.test/story</link><description>Drop me.</description></item>
 </channel></rss>`;
 
+const guardianStyleRss = `<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0"><channel><item>
+  <title>Publisher full-feed item</title>
+  <link>https://news.example.test/story/full-feed</link>
+  <description><![CDATA[<p>${"Publisher-supplied article sentence. ".repeat(90)}</p>]]></description>
+  <media:content><media:credit>Photograph credit only</media:credit></media:content>
+</item></channel></rss>`;
+
 function read16(bytes: Uint8Array, offset: number) {
   return bytes[offset] | bytes[offset + 1] << 8;
 }
@@ -80,6 +88,14 @@ test("sanitises feed metadata and rejects article URLs outside the reviewed host
   assert.equal(items[0].url, "https://news.example.test/story/one?from=rss&edition=uk");
   assert.equal(items[0].publishedAt, "2026-08-16T12:00:00.000Z");
   assert.doesNotMatch(JSON.stringify(items), /alert|script|attacker\.test/i);
+});
+
+test("prefers a substantive RSS description over media content metadata", () => {
+  const [item] = parseBriefFeed(guardianStyleRss, fixtureFeed);
+  assert.ok(item.content);
+  assert.match(item.content, /Publisher-supplied article sentence/);
+  assert.doesNotMatch(item.content, /Photograph credit/);
+  assert.ok(item.content.length > (item.summary?.length ?? 0));
 });
 
 test("isolates one failed source and still returns a usable partial edition", async () => {
@@ -136,6 +152,31 @@ test("combines an explicit reviewed feed selection into one deduplicated edition
   assert.deepEqual(payload.feedIds, [fixtureFeed.id, secondFeed.id]);
   assert.equal(payload.sources.length, 2);
   assert.equal(payload.items.length, 1, "the same canonical article URL is included once");
+});
+
+test("interleaves selected publishers before applying the edition item cap", async () => {
+  clearBriefCacheForTests();
+  const secondFeed: BriefFeed = {
+    ...fixtureFeed,
+    id: "fixture-balanced",
+    name: "Balanced Fixture",
+    feedUrl: "https://feeds.example.test/balanced.xml",
+  };
+  const feedXml = (prefix: string) => `<?xml version="1.0"?><rss><channel>${Array.from({ length: 4 }, (_, index) => `
+    <item><title>${prefix} ${index}</title><link>https://news.example.test/${prefix}/${index}</link><pubDate>Sun, 16 Aug 2026 ${12 - index}:00:00 GMT</pubDate><description>${prefix} summary</description></item>`).join("")}
+  </channel></rss>`;
+  const payload = await aggregateBriefSelection(
+    { country: "GB", topic: "top", feedIds: [fixtureFeed.id, secondFeed.id] },
+    {
+      registry: [fixtureFeed, secondFeed],
+      fetchFeed: async (feed) => feedXml(feed.id),
+      now: () => new Date("2026-08-16T13:00:00Z"),
+    },
+  );
+  assert.deepEqual(
+    payload.items.slice(0, 6).map((item) => item.source.name),
+    ["Fixture News", "Balanced Fixture", "Fixture News", "Balanced Fixture", "Fixture News", "Balanced Fixture"],
+  );
 });
 
 test("accepts only bounded, reviewed feed identifiers in request URLs", () => {

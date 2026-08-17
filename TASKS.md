@@ -58,7 +58,7 @@ Every substantive product request from the build conversation is represented bel
 ### Current release candidate
 
 - Search composer: one stable desktop/mobile bar, compact 30 px submit action, active mode/region summary in the bar, animated model-picker-style options panel, outside-click/Escape dismissal, and no zero-count or button treatment on Saved.
-- Briefleaf: The Guardian added as a second reviewed UK publisher; publisher-supplied `content:encoded`/Atom article text is sanitised and available in the side reader and EPUB, while summary-only feeds remain clearly labelled and link to the original article. Source status is collapsed by default.
+- Briefleaf: The Guardian added as a second reviewed UK publisher; publisher-supplied full RSS descriptions, `content:encoded`, and Atom article text are sanitised and available in the side reader and EPUB, while summary-only feeds remain clearly labelled and link to the original article. Selected publishers are round-robin interleaved before the 24-item cap, and source status is collapsed by default.
 - Deployment and production verification are in progress; do not call these changes live until LL-024 records the new deploy ID.
 
 ### Next / not yet implemented
