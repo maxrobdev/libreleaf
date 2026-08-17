@@ -94,6 +94,12 @@ Every substantive product request from the build conversation is represented bel
 - The open resolver index now includes a bounded, reproducible Project Gutenberg CSV importer and deterministic serialisation path; it remains an optional self-hosted reference implementation rather than the production-primary search path.
 - Verification passed: full `npm run check`, focused resolver/MCP/docs/index suites, static Netlify-output checks, clean secret-pattern scan, GitHub commit `b37ca88`, production documentation HTTP 200, and production resolver HTTP 200.
 
+### Shipped in deploy `6a82e91aae9891f60360fb7e`
+
+- The open resolver index adds a source-specific DOAB OAI-PMH XOAI harvester. It exhausts opaque resumption tokens, archives every raw XML page, records SHA-256 checksums and explicit completeness, accepts book/monograph records only, and retains DOI, ISBN, source datestamp, download/read route and licence evidence.
+- DOAB's CC0 metadata-feed licence remains separate from each book's publisher-supplied licence. Records without a machine-readable book licence retain source-provided access without an open-licence claim. Deleted headers are audited but do not trigger removal before a reviewed tombstone policy exists.
+- Verification passed: 15 resolver-index tests and full `npm run check`; a populated official page read 100 records, imported 94 books and reported the next token as incomplete under the one-page bound; the resulting NDJSON ingested into the self-hosted SQLite index and returned the correct title, four authors, DOI, PDF, licence and source datestamp. GitHub implementation commit `5556601`; production home and `/docs/resolver-index/` returned HTTP 200.
+
 ### Next / not yet implemented
 
 - Custom domain research and migration, including live price/renewal/trademark checks and coordinated canonical redirects. See LL-012.
@@ -345,7 +351,7 @@ Every substantive product request from the build conversation is represented bel
 - Use live adapters for refresh and availability checks, not as the only copy of catalogue metadata. Failed refreshes keep the last known record with visible freshness.
 - Evaluate PostgreSQL full-text search plus a replaceable optional search engine; do not make ranking dependent on a closed model or vendor-only feature.
 - Acceptance: a clean self-hosted install can ingest fixtures, build the canonical index, search locally, export its data, and reproduce every merge/rank explanation.
-- Shipped locally: checked-in SQLite/FTS5 migration; validated deterministic NDJSON importer; source-record-level refresh safety; failed-refresh audit; local search explanations; complete deterministic JSON/CSV exports; loopback read service; cursor-exhausting query-snapshot builder with canonical deduplication and honest incomplete-run reports; Project Gutenberg weekly CSV ingestion; DOAB OAI-PMH harvesting with raw-page checksums, opaque-token exhaustion and separate metadata/book-licence evidence; fixture, live-smoke and regression verification. Remaining: other reviewed source dumps/importers, tombstones/freshness UI, deployment storage and primary-read cutover with live fallback.
+- Shipped through deploy `6a82e91aae9891f60360fb7e`: checked-in SQLite/FTS5 migration; validated deterministic NDJSON importer; source-record-level refresh safety; failed-refresh audit; local search explanations; complete deterministic JSON/CSV exports; loopback read service; cursor-exhausting query-snapshot builder with canonical deduplication and honest incomplete-run reports; Project Gutenberg weekly CSV ingestion; DOAB OAI-PMH harvesting with raw-page checksums, opaque-token exhaustion and separate metadata/book-licence evidence; fixture, live-smoke and regression verification. Remaining: other reviewed source dumps/importers, tombstones/freshness UI, deployment storage and primary-read cutover with live fallback.
 
 ### LL-018 · Source expansion programme (v0.2)
 
