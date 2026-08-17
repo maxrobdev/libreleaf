@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -12,9 +12,11 @@ import {
 } from "../lib/libresend/core.ts";
 import { decryptReaderFile, encryptReaderFile, isLibreSendEnvelope } from "../lib/libresend/crypto.ts";
 import { createEncryptedRelayTransfer, getRelayStatus } from "../lib/libresend/client.ts";
+import { normaliseLibreSendHostExtension } from "../lib/libresend/host.ts";
 import { handleLibreSendRelayRequest, LibreSendRelayCapacityError, MemoryLibreSendRelayStore } from "../lib/libresend/relay.ts";
 import { LibreSendTransportRegistry } from "../lib/libresend/transports.ts";
 import { FilesystemLibreSendRelayStore } from "../tools/libresend-relay/filesystem-store.ts";
+import { loadLocalLibreSendHostExtension } from "../tools/libresend-relay/load-extension.ts";
 
 test("LibreSend accepts bounded EPUB, PDF and MOBI selections without reading file contents", () => {
   assert.deepEqual(checkReaderFile({ name: "book.epub", size: 1_024, type: "application/epub+zip" }), { ok: true, format: "EPUB" });
@@ -154,11 +156,30 @@ test("relay modules authorise transfer routes and receive metadata-only lifecycl
   const store = new MemoryLibreSendRelayStore();
   const extension = {
     id: "test-policy",
+    version: "1.2.0",
+    capabilities: ["aggregate-events"],
     authorize: ({ origin }: { origin: string | null }) => origin === "https://books.example",
     onEvent: (event: { type: string; bytes?: number }) => { events.push({ type: event.type, bytes: event.bytes }); },
   };
-  const status = await handleLibreSendRelayRequest(new Request("https://relay.example/v1/status"), { store, modules: [extension], storageName: "test" });
-  assert.deepEqual((await status.json() as { modules: string[]; storage: string }), { protocol: "1", maxBytes: 26214400, ttlSeconds: 900, encryption: "client-side AES-256-GCM", retrieval: "single-use", storage: "test", modules: ["test-policy"] });
+  const status = await handleLibreSendRelayRequest(new Request("https://relay.example/v1/status"), {
+    store,
+    modules: [extension],
+    storageName: "test",
+    hostExtension: "test-host",
+    publicCapabilities: { profile: "community" },
+  });
+  assert.deepEqual(await status.json(), {
+    protocol: "1",
+    maxBytes: 26214400,
+    ttlSeconds: 900,
+    encryption: "client-side AES-256-GCM",
+    retrieval: "single-use",
+    storage: "test",
+    modules: ["test-policy"],
+    moduleDetails: [{ id: "test-policy", version: "1.2.0", capabilities: ["aggregate-events"] }],
+    hostExtension: "test-host",
+    capabilities: { profile: "community" },
+  });
 
   const encrypted = await encryptReaderFile(new File(["module"], "module.epub", { type: "application/epub+zip" }));
   const denied = await handleLibreSendRelayRequest(new Request("https://relay.example/v1/transfers", {
@@ -184,6 +205,57 @@ test("relay modules authorise transfer routes and receive metadata-only lifecycl
   await handleLibreSendRelayRequest(new Request(`https://relay.example/v1/transfers/${id}`, { headers: { origin: "https://books.example" } }), config);
   assert.deepEqual(events.map((event) => event.type), ["transfer.stored", "transfer.received"]);
   assert.equal(events.every((event) => typeof event.bytes === "number"), true);
+});
+
+test("loads a trusted local host extension and rejects remote extension URLs", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "libresend-extension-"));
+  const store = new MemoryLibreSendRelayStore();
+  const context = {
+    allowedOrigins: ["https://books.example"],
+    limits: { maxBytes: 4096, ttlSeconds: 300, storageMaxBytes: 8192, storageMaxObjects: 8 },
+    defaultStorage: { name: "memory" as const, store },
+  };
+  try {
+    const modulePath = join(directory, "relay-extension.mjs");
+    await writeFile(modulePath, `
+      export default (context) => ({
+        id: "test-host",
+        modules: [{ id: "test-events", version: "1.0.0", capabilities: ["aggregate-events"] }],
+        publicCapabilities: { profile: context.defaultStorage.name, max: context.limits.maxBytes }
+      });
+    `, "utf8");
+    const loaded = await loadLocalLibreSendHostExtension(modulePath, context);
+    assert.equal(loaded?.id, "test-host");
+    assert.deepEqual(loaded?.modules?.map((module) => module.id), ["test-events"]);
+    assert.deepEqual(loaded?.publicCapabilities, { profile: "memory", max: 4096 });
+    await assert.rejects(
+      loadLocalLibreSendHostExtension("https://mods.example/relay.mjs", context),
+      /local file path/,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("validates privileged custom stores, headers and public capabilities", () => {
+  const store = new MemoryLibreSendRelayStore();
+  const extension = normaliseLibreSendHostExtension({
+    id: "custom-host",
+    store,
+    storageName: "custom-store",
+    allowedHeaders: ["x-community-token", "x-community-token"],
+    publicCapabilities: { profile: "private", replicas: 1 },
+  });
+  assert.equal(extension.store, store);
+  assert.deepEqual(extension.allowedHeaders, ["x-community-token"]);
+  assert.throws(
+    () => normaliseLibreSendHostExtension({ id: "custom-host", store }),
+    /storageName/,
+  );
+  assert.throws(
+    () => normaliseLibreSendHostExtension({ id: "custom-host", publicCapabilities: { secret: {} } }),
+    /bounded primitive/,
+  );
 });
 
 test("relay enforces exact origins, envelope type, size and expiry bounds", async () => {

@@ -100,7 +100,7 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
       setRelayInput(endpoint);
       setRelayConnection({
         kind: "success",
-        message: `Connected · ${status.storage ?? "custom"} storage · ${formatReaderFileSize(status.maxBytes)} limit · ${Math.round(status.ttlSeconds / 60)} min expiry.`,
+        message: `Connected · ${status.storage ?? "custom"} storage${status.hostExtension ? ` · ${status.hostExtension}` : ""} · ${formatReaderFileSize(status.maxBytes)} limit · ${Math.round(status.ttlSeconds / 60)} min expiry.`,
       });
     } catch (error) {
       setRelayConnection({ kind: "error", message: error instanceof Error ? error.message : "The relay could not be connected." });
@@ -389,8 +389,8 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
 
       <details className={styles.framework}>
         <summary>Self-host LibreSend</summary>
-        <p>Run the open relay handler with an in-memory or custom storage adapter, strict origin rules, expiry and one-use retrieval. The public LibreLeaf site does not run a relay by default.</p>
-        <a href={LIBRESEND_DOCS_URL} target="_blank" rel="noreferrer">Protocol, server and adapter code ↗</a>
+        <p>Run the relay in memory, with persistent storage, or mount trusted local code for custom stores, policy and modules. The public LibreLeaf site does not run a relay.</p>
+        <a href={LIBRESEND_DOCS_URL} target="_blank" rel="noreferrer">Server, modules and custom code ↗</a>
       </details>
 
       <footer className={styles.footer}>

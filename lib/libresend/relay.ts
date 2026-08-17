@@ -30,6 +30,8 @@ export type LibreSendRelayEvent =
 
 export interface LibreSendRelayModule {
   id: string;
+  version?: string;
+  capabilities?: string[];
   authorize?(context: LibreSendRelayRequestContext): boolean | Promise<boolean>;
   onEvent?(event: LibreSendRelayEvent): void | Promise<void>;
 }
@@ -85,16 +87,31 @@ export type LibreSendRelayConfig = {
   allowRequest?: (request: Request) => boolean | Promise<boolean>;
   modules?: LibreSendRelayModule[];
   storageName?: string;
+  hostExtension?: string;
+  allowedHeaders?: string[];
+  publicCapabilities?: Record<string, string | number | boolean>;
 };
 
 const transferIdPattern = /^[A-Za-z0-9_-]{24}$/;
 const moduleIdPattern = /^[a-z][a-z0-9-]{1,40}$/;
+const moduleVersionPattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+const moduleCapabilityPattern = /^[a-z][a-z0-9-]{1,48}$/;
 
 function validateModules(modules: LibreSendRelayModule[]) {
   const ids = new Set<string>();
   for (const extension of modules) {
     if (!moduleIdPattern.test(extension.id)) throw new Error("LibreSend relay module IDs use lowercase letters, numbers and hyphens.");
     if (ids.has(extension.id)) throw new Error(`LibreSend relay module ${extension.id} is already registered.`);
+    if (extension.version !== undefined && !moduleVersionPattern.test(extension.version)) {
+      throw new Error(`LibreSend relay module ${extension.id} has an invalid version.`);
+    }
+    if (extension.capabilities && (
+      extension.capabilities.length > 16
+      || new Set(extension.capabilities).size !== extension.capabilities.length
+      || extension.capabilities.some((capability) => !moduleCapabilityPattern.test(capability))
+    )) {
+      throw new Error(`LibreSend relay module ${extension.id} has invalid capabilities.`);
+    }
     ids.add(extension.id);
   }
 }
@@ -134,7 +151,7 @@ function randomId(randomBytes: (length: number) => Uint8Array) {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-function originHeaders(request: Request, allowedOrigins: string[]): Record<string, string> | null {
+function originHeaders(request: Request, allowedOrigins: string[], allowedHeaders: string[]): Record<string, string> | null {
   const origin = request.headers.get("origin");
   if (!origin) return {};
   const sameOrigin = origin === new URL(request.url).origin;
@@ -142,7 +159,7 @@ function originHeaders(request: Request, allowedOrigins: string[]): Record<strin
   return {
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "content-type, x-libresend-version",
+    "access-control-allow-headers": ["content-type", "x-libresend-version", ...allowedHeaders].join(", "),
     "access-control-max-age": "600",
     vary: "Origin",
   };
@@ -182,7 +199,7 @@ export async function handleLibreSendRelayRequest(request: Request, config: Libr
   const ttlSeconds = Math.min(Math.max(config.ttlSeconds ?? LIBRESEND_RELAY_DEFAULT_TTL_SECONDS, 60), 24 * 60 * 60);
   const modules = config.modules ?? [];
   validateModules(modules);
-  const cors = originHeaders(request, config.allowedOrigins ?? []);
+  const cors = originHeaders(request, config.allowedOrigins ?? [], config.allowedHeaders ?? []);
   if (!cors) return json({ error: "Origin not allowed." }, 403);
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
 
@@ -196,6 +213,13 @@ export async function handleLibreSendRelayRequest(request: Request, config: Libr
       retrieval: "single-use",
       storage: config.storageName ?? (config.store instanceof MemoryLibreSendRelayStore ? "memory" : "adapter"),
       modules: modules.map((extension) => extension.id),
+      moduleDetails: modules.map((extension) => ({
+        id: extension.id,
+        version: extension.version ?? null,
+        capabilities: extension.capabilities ?? [],
+      })),
+      hostExtension: config.hostExtension ?? null,
+      capabilities: config.publicCapabilities ?? {},
     }, 200, cors);
   }
 

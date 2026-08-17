@@ -91,7 +91,7 @@ export function Developers() {
           <h2 id="libresend-title">Build or self-host encrypted handoff.</h2>
         </div>
         <div>
-          <code>SDK · Node · Docker · custom stores</code>
+          <code>SDK · Node · Docker · host extensions</code>
           <a href="https://github.com/maxrobdev/libreleaf/blob/main/docs/LIBRESEND.md" target="_blank" rel="noreferrer">Framework and deployment ↗</a>
         </div>
       </section>

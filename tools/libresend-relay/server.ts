@@ -4,6 +4,7 @@ import {
   MemoryLibreSendRelayStore,
 } from "../../lib/libresend/relay.ts";
 import { FilesystemLibreSendRelayStore } from "./filesystem-store.ts";
+import { loadLocalLibreSendHostExtension } from "./load-extension.ts";
 
 function boundedNumber(value: string | undefined, fallback: number, minimum: number, maximum: number) {
   const parsed = Number(value);
@@ -21,10 +22,21 @@ const allowedOrigins = (process.env.LIBRESEND_ALLOWED_ORIGINS || "http://localho
 const storageDirectory = process.env.LIBRESEND_STORAGE_DIR?.trim() || "";
 const storageMaxBytes = boundedNumber(process.env.LIBRESEND_STORAGE_MAX_BYTES, 2 * 1024 * 1024 * 1024, maxBytes, 1024 * 1024 * 1024 * 1024);
 const storageMaxObjects = boundedNumber(process.env.LIBRESEND_STORAGE_MAX_OBJECTS, 10_000, 1, 100_000);
-const store = storageDirectory
+const defaultStore = storageDirectory
   ? new FilesystemLibreSendRelayStore({ directory: storageDirectory, maxBytes: storageMaxBytes, maxObjects: storageMaxObjects })
   : new MemoryLibreSendRelayStore({ maxBytes: storageMaxBytes, maxObjects: storageMaxObjects });
-const storageName = storageDirectory ? "filesystem" : "memory";
+const defaultStorageName: "filesystem" | "memory" = storageDirectory ? "filesystem" : "memory";
+const extension = await loadLocalLibreSendHostExtension(process.env.LIBRESEND_EXTENSION || "", {
+  allowedOrigins: Object.freeze([...allowedOrigins]),
+  limits: Object.freeze({ maxBytes, ttlSeconds, storageMaxBytes, storageMaxObjects }),
+  defaultStorage: Object.freeze({
+    name: defaultStorageName,
+    store: defaultStore,
+  }),
+});
+const store = extension?.store ?? defaultStore;
+const storageName = extension?.storageName ?? defaultStorageName;
+const modules = extension?.modules ?? [];
 
 const rateBuckets = new Map<string, { window: number; count: number }>();
 function allowAddress(address: string) {
@@ -81,8 +93,15 @@ const server = createServer(async (incoming, outgoing) => {
       maxBytes,
       ttlSeconds,
       allowedOrigins,
-      allowRequest: () => allowAddress(address),
+      allowRequest: async (relayRequest) => (
+        allowAddress(address)
+        && (extension?.allowRequest ? await extension.allowRequest(relayRequest) : true)
+      ),
       storageName,
+      modules,
+      hostExtension: extension?.id,
+      allowedHeaders: extension?.allowedHeaders,
+      publicCapabilities: extension?.publicCapabilities,
     });
     outgoing.writeHead(response.status, Object.fromEntries(response.headers.entries()));
     outgoing.end(new Uint8Array(await response.arrayBuffer()));
@@ -97,4 +116,36 @@ server.listen(port, host, () => {
   process.stdout.write(`Allowed origins: ${allowedOrigins.join(", ")}\n`);
   process.stdout.write(`Limits: ${maxBytes} bytes, ${ttlSeconds} seconds, one retrieval\n`);
   process.stdout.write(`Storage: ${storageName}${storageDirectory ? ` (${storageDirectory})` : ""}\n`);
+  if (extension) process.stdout.write(`Extension: ${extension.id}${modules.length ? ` (${modules.map((module) => module.id).join(", ")})` : ""}\n`);
+  void Promise.resolve(extension?.onReady?.({
+    host,
+    port,
+    storage: storageName,
+    modules: modules.map((module) => module.id),
+  })).catch(() => {
+    process.stderr.write("LibreSend extension onReady hook failed.\n");
+  });
 });
+
+let stopping = false;
+async function stop(signal: NodeJS.Signals) {
+  if (stopping) return;
+  stopping = true;
+  process.stdout.write(`LibreSend relay stopping (${signal}).\n`);
+  const forced = setTimeout(() => process.exit(1), 10_000);
+  forced.unref();
+  server.close(async (error) => {
+    let exitCode = error ? 1 : 0;
+    try {
+      await extension?.onClose?.();
+    } catch {
+      exitCode = 1;
+      process.stderr.write("LibreSend extension onClose hook failed.\n");
+    }
+    clearTimeout(forced);
+    process.exit(exitCode);
+  });
+}
+
+process.once("SIGINT", () => void stop("SIGINT"));
+process.once("SIGTERM", () => void stop("SIGTERM"));

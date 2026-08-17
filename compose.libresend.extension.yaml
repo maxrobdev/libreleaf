@@ -1,0 +1,9 @@
+services:
+  relay:
+    environment:
+      LIBRESEND_EXTENSION: /etc/libresend/extension.mjs
+    volumes:
+      - type: bind
+        source: ${LIBRESEND_EXTENSION_FILE:-./examples/libresend/community-extension.mjs}
+        target: /etc/libresend/extension.mjs
+        read_only: true

@@ -13,6 +13,8 @@ LibreSend separates the file from the way it moves:
 
 The public LibreLeaf deployment leaves the relay disabled. The reference client can test and use a self-hosted HTTPS relay for the current page session; it never turns LibreLeaf into a file proxy.
 
+Self-hosters can keep the stock memory/filesystem host or load one reviewed local [host extension](./LIBRESEND_EXTENSIONS.md) for custom storage, policy and modules. Extension loading is off by default.
+
 ## Run the relay
 
 The reference server requires Node 22 or newer and listens on loopback by default. With no storage directory it holds ciphertext in process memory.
@@ -51,8 +53,20 @@ Configuration:
 | `LIBRESEND_STORAGE_DIR` | empty | Empty uses memory; a path enables atomic persistent storage. |
 | `LIBRESEND_STORAGE_MAX_BYTES` | `2147483648` | Total encrypted storage budget. |
 | `LIBRESEND_STORAGE_MAX_OBJECTS` | `10000` | Pending-transfer count budget. |
+| `LIBRESEND_EXTENSION` | empty | Trusted local `.js`, `.mjs`, `.ts` or `.mts` host extension; URLs are rejected. |
 
 The server applies a per-address request bucket, exact CORS origins, content-type and protocol checks, byte caps, expiry, no-store headers and destructive one-use reads. Memory storage is intentionally single-process. The filesystem store writes mode-0600 versioned objects, publishes them atomically and renames a file to a unique claim before reading it; competing recipients cannot both receive it. It is for one host with a shared local volume, not multiple replicas on network storage.
+
+To run the checked-in community extension through a read-only Compose mount:
+
+```sh
+docker compose \
+  -f compose.libresend.yaml \
+  -f compose.libresend.extension.yaml \
+  up -d --build
+```
+
+The extension example emits aggregate counts only. It does not log transfer identifiers or bodies. See the [extension API and trust model](./LIBRESEND_EXTENSIONS.md) before installing custom code.
 
 ## Connect a client
 
@@ -126,6 +140,12 @@ return handleLibreSendRelayRequest(request, {
 ```
 
 Module IDs are unique and listed by the capability endpoint. Modules cannot see plaintext because encryption has already happened in the sender's browser. Do not use event hooks to build per-reader activity logs.
+
+Modules may also declare a validated semantic version and bounded capability slugs. The original `modules: string[]` response remains for protocol-1 clients; `moduleDetails`, `hostExtension` and `capabilities` let custom clients discover optional behaviour without exposing configuration or secrets.
+
+## Trusted host extensions
+
+A relay module is intentionally privacy-bounded. Operators who need custom atomic storage, request policy, CORS headers or lifecycle wiring can load one local host extension at startup. Host extensions run with full process privileges, so LibreSend never downloads, scans for, hot reloads or auto-updates them. Use the [host extension contract](./LIBRESEND_EXTENSIONS.md), the runnable example and the read-only Compose overlay.
 
 ## Custom browser transports
 

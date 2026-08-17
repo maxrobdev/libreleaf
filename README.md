@@ -7,7 +7,7 @@ Open-source search for lawful, free-to-read books.
 
 [Use LibreLeaf](https://libreleaf-books.netlify.app/) · [Report an issue](https://github.com/maxrobdev/libreleaf/issues)
 
-LibreLeaf resolves one work across [Project Gutenberg](https://www.gutenberg.org/), [Open Library](https://openlibrary.org/), [Wikisource](https://wikisource.org/), [DOAB](https://www.doabooks.org/) and the [Library of Congress](https://www.loc.gov/). It keeps every source record and labels download, read, borrow and preview routes separately.
+LibreLeaf resolves one work across [Project Gutenberg](https://www.gutenberg.org/), [Open Library](https://openlibrary.org/), [Wikisource](https://wikisource.org/), [DOAB](https://www.doabooks.org/), the [Library of Congress](https://www.loc.gov/) and [LibriVox](https://librivox.org/). It keeps every source record and labels download, read, listen, borrow and preview routes separately.
 
 I built LibreLeaf because public-domain knowledge should be easy for people to find and use. I do not sell the app, hide downloads behind misleading buttons, or mix lawful catalogues with piracy sources. Every result names its source and every action says what will happen.
 
@@ -46,7 +46,8 @@ LibreLeaf /api/search
       ├── Open Library ─────────► works, loans and previews
       ├── Wikisource ───────────► source-hosted reading routes
       ├── DOAB ─────────────────► licensed open-access editions
-      └── Library of Congress ──► digitised records and explicit files
+      ├── Library of Congress ──► digitised records and explicit files
+      └── LibriVox ─────────────► public-domain audiobook routes
       │
       ▼
 Canonical work clusters with retained source records
@@ -57,7 +58,7 @@ Rank reasons, rights context and labelled access routes
 
 The browser calls LibreLeaf's server-side resolver. Sources run independently with bounded timeouts, cursors and cache headers. Exact normalized title-and-primary-author matches are clustered; fuzzy matches remain separate. Source positions are combined with [Reciprocal Rank Fusion](https://research.google/pubs/reciprocal-rank-fusion-outperforms-condorcet-and-individual-rank-learning-methods/) (`k=60`), with a small disclosed exact-title or exact-author signal. A failed source keeps its cursor position so a later request can retry it.
 
-Direct file links are exposed only when the named source supplies an allowlisted URL. Open Library records lead to its catalogue, borrowing or preview interface. Library of Congress routes remain `check-local` even when its record supplies a PDF. See the [source and rights policy](docs/SOURCE_POLICY.md).
+Direct file links are exposed only when the named source supplies an allowlisted URL. Open Library records lead to its catalogue, borrowing or preview interface. Library of Congress routes remain `check-local` even when its record supplies a PDF. LibriVox recording and text assessments are US-based, so UK and global contexts remain source-jurisdiction-only. See the [source and rights policy](docs/SOURCE_POLICY.md).
 
 ## Run it locally
 
@@ -114,7 +115,7 @@ docs/                     # architecture, source policy, MCP and submission note
 tests/                    # route, source, MCP, SEO and rendered-output tests
 ```
 
-LibreSend is local-only by default. Its optional self-hosted relay receives client-encrypted, expiring, one-use envelopes and is deliberately disabled on the public LibreLeaf deployment. The repository includes a portable Fetch handler, memory and atomic filesystem stores, relay modules, custom browser transports, a Node server, hardened Docker Compose deployment and headless SDK entry point. See the [LibreSend protocol and self-hosting guide](docs/LIBRESEND.md).
+LibreSend is local-only by default. Its optional self-hosted relay receives client-encrypted, expiring, one-use envelopes and is deliberately disabled on the public LibreLeaf deployment. The repository includes a portable Fetch handler, memory and atomic filesystem stores, privacy-bounded relay modules, custom browser transports, a Node server, hardened Docker Compose deployment and headless SDK entry point. Operators can mount one reviewed local host extension for custom storage, policy and lifecycle code; remote loading and hot reload are excluded. See the [LibreSend guide](docs/LIBRESEND.md) and [extension contract](docs/LIBRESEND_EXTENSIONS.md).
 
 LibreLeaf uses React 19, TypeScript, vinext, Vite, Netlify Functions and Netlify Edge Functions. Saved books remain in `localStorage`; there is no account database or tracking profile. See [Architecture](docs/ARCHITECTURE.md) and the [source policy](docs/SOURCE_POLICY.md).
 
@@ -127,6 +128,7 @@ LibreLeaf is an independent interface and is not affiliated with its catalogue s
 - Wikisource copyright tags vary by work and reader location; language is not treated as jurisdiction evidence.
 - DOAB records retain their publisher-supplied open licence where one is present.
 - Library of Congress access routes do not establish public-domain status; its rights advisory and local-law warning remain attached.
+- LibriVox audio routes retain the source's US public-domain assessment and an explicit local-law check outside the US.
 - Book covers, metadata, and book files remain subject to the rights and terms stated by their respective sources.
 
 The interface is designed around transparent linking, not republishing catalogue files. If a result appears incorrectly classified, please [report it](../../issues/new?template=content-report.yml).

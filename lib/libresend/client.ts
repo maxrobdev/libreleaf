@@ -18,6 +18,9 @@ export type RelayStatus = {
   retrieval: string;
   storage?: string;
   modules?: string[];
+  moduleDetails?: Array<{ id: string; version: string | null; capabilities: string[] }>;
+  hostExtension?: string | null;
+  capabilities?: Record<string, string | number | boolean>;
 };
 
 export function normaliseRelayUrl(value: string) {

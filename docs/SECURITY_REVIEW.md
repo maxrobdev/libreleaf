@@ -17,6 +17,7 @@ Tracked files and repository history were scanned for common GitHub, Netlify, AW
 - Book files are linked at their source. The public LibreLeaf deployment does not proxy or store them.
 - LibreSend local mode handles a selected file only in the browser. Its optional self-hosted relay is disabled on the public site; when configured elsewhere, the client uploads an AES-GCM encrypted envelope whose key remains in the link fragment.
 - The reference LibreSend relay enforces exact origins, byte and lifetime caps, bounded request rates and destructive one-use retrieval. Encryption does not remove a relay operator's abuse, metadata, retention, takedown or jurisdiction responsibilities.
+- LibreSend host extensions are disabled by default, load only from an explicit local file at process start and run with full relay-process privileges. They are trusted operator code, not sandboxed plugins. The container overlay mounts them read-only; remote installation and auto-update are deliberately absent.
 - Browser-saved items remain in local storage and are not an authentication or authorisation mechanism.
 
 ## Repository controls
