@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { SiteNav } from "../app/components/SiteNav";
 import {
   canShareReaderFile,
@@ -12,6 +12,7 @@ import {
 } from "../lib/libresend/core";
 import {
   createEncryptedRelayTransfer,
+  getRelayStatus,
   normaliseRelayUrl,
   receiveEncryptedRelayTransfer,
 } from "../lib/libresend/client";
@@ -57,6 +58,8 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
   const [fileError, setFileError] = useState("");
   const [handoff, setHandoff] = useState<HandoffState>({ kind: "idle" });
   const [relayEndpoint, setRelayEndpoint] = useState("");
+  const [relayInput, setRelayInput] = useState("");
+  const [relayConnection, setRelayConnection] = useState<HandoffState>({ kind: "idle" });
   const [relay, setRelay] = useState<RelayState>({ kind: "idle" });
   const [receiveRequest, setReceiveRequest] = useState<ReceiveRequest | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,11 +72,47 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
   }, []);
 
   useEffect(() => {
-    setRelayEndpoint(configuredRelay(relayUrl));
+    const configured = configuredRelay(relayUrl);
     const id = new URLSearchParams(window.location.search).get("receive") ?? "";
-    const key = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("key") ?? "";
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const key = fragment.get("key") ?? "";
+    const linkedRelay = fragment.get("relay") ?? "";
+    let endpoint = configured;
+    if (linkedRelay) {
+      try {
+        endpoint = normaliseRelayUrl(linkedRelay);
+      } catch {
+        setRelayConnection({ kind: "error", message: "The transfer link contains an invalid relay address." });
+      }
+    }
+    setRelayEndpoint(endpoint);
+    setRelayInput(endpoint);
     if (id && key) setReceiveRequest({ id, key });
   }, [relayUrl]);
+
+  async function connectRelay(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setRelayConnection({ kind: "working", message: "Checking relay capabilities…" });
+    try {
+      const endpoint = normaliseRelayUrl(relayInput);
+      const status = await getRelayStatus(endpoint);
+      setRelayEndpoint(endpoint);
+      setRelayInput(endpoint);
+      setRelayConnection({
+        kind: "success",
+        message: `Connected · ${status.storage ?? "custom"} storage · ${formatReaderFileSize(status.maxBytes)} limit · ${Math.round(status.ttlSeconds / 60)} min expiry.`,
+      });
+    } catch (error) {
+      setRelayConnection({ kind: "error", message: error instanceof Error ? error.message : "The relay could not be connected." });
+    }
+  }
+
+  function disconnectRelay() {
+    setRelayEndpoint("");
+    setRelayInput("");
+    setRelay({ kind: "idle" });
+    setRelayConnection({ kind: "info", message: "Relay disconnected for this browser session." });
+  }
 
   function releaseLocalUrl() {
     if (!localUrlRef.current) return;
@@ -186,7 +225,7 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
         <dl className={styles.privacyFacts} aria-label="LibreSend privacy properties">
           <div><dt>Default</dt><dd>Local only</dd></div>
           <div><dt>Account</dt><dd>None</dd></div>
-          <div><dt>Relay</dt><dd>{relayEndpoint ? "Encrypted" : "Off"}</dd></div>
+          <div><dt>Relay</dt><dd>{relayEndpoint ? "Connected" : "Off"}</dd></div>
         </dl>
       </header>
 
@@ -197,7 +236,8 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
             <button type="button" onClick={() => void receiveFile()} disabled={handoff.kind === "working"}>
               {handoff.kind === "working" ? "Receiving…" : "Receive once"}
             </button>
-          ) : <p>This LibreSend installation has no relay configured.</p>}
+          ) : <p>This transfer needs its self-hosted relay address.</p>}
+          {relayEndpoint ? <p>Relay: {new URL(relayEndpoint).host}</p> : null}
           {handoff.kind !== "idle" ? <p role={handoff.kind === "error" ? "alert" : "status"}>{handoff.message}</p> : null}
         </section>
       ) : null}
@@ -274,6 +314,34 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
         )}
         {fileError ? <p className={styles.fileError} role="alert">{fileError}</p> : null}
       </section>
+
+      <details className={styles.relaySetup}>
+        <summary>Self-hosted relay</summary>
+        <div>
+          <p>Connect directly to your own LibreSend relay. The address stays in this page session; files are encrypted before an explicit upload.</p>
+          <form onSubmit={(event) => void connectRelay(event)}>
+            <label htmlFor="libresend-relay">Relay URL</label>
+            <input
+              id="libresend-relay"
+              type="url"
+              inputMode="url"
+              placeholder="https://send.example.org"
+              value={relayInput}
+              onChange={(event) => setRelayInput(event.currentTarget.value)}
+              required
+            />
+            <button type="submit" disabled={relayConnection.kind === "working"}>
+              {relayConnection.kind === "working" ? "Checking…" : "Test and use"}
+            </button>
+            {relayEndpoint ? <button type="button" onClick={disconnectRelay}>Disconnect</button> : null}
+          </form>
+          {relayConnection.kind !== "idle" ? (
+            <p className={relayConnection.kind === "error" ? styles.error : ""} role={relayConnection.kind === "error" ? "alert" : "status"}>
+              {relayConnection.message}
+            </p>
+          ) : null}
+        </div>
+      </details>
 
       <section className={styles.deviceSection} aria-labelledby="device-routes-title">
         <div className={styles.toolHeader}>

@@ -10,6 +10,7 @@
 .workspace,
 .deviceSection,
 .boundary,
+.relaySetup,
 .framework,
 .footer {
   width: min(1180px, calc(100% - 40px));
@@ -346,6 +347,77 @@
   color: #8b332b;
 }
 
+.relaySetup {
+  margin-top: 28px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .24);
+}
+
+.relaySetup summary {
+  padding: 15px 18px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.relaySetup > div {
+  padding: 0 18px 18px;
+}
+
+.relaySetup p {
+  max-width: 720px;
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.relaySetup form {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.relaySetup label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.relaySetup input,
+.relaySetup button {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font: 600 11px var(--font-sans), sans-serif;
+}
+
+.relaySetup input {
+  min-width: 0;
+  padding: 10px 12px;
+  background: #fffefa;
+  color: var(--ink);
+}
+
+.relaySetup button {
+  padding: 9px 13px;
+  background: var(--ink);
+  color: white;
+  cursor: pointer;
+}
+
+.relaySetup button + button {
+  background: transparent;
+  color: var(--ink);
+}
+
+.relaySetup .error {
+  margin-top: 10px;
+  color: #8b332b;
+}
+
 .relayActions {
   margin-top: 12px;
   padding: 12px;
@@ -601,6 +673,7 @@
   .workspace,
   .deviceSection,
   .boundary,
+  .relaySetup,
   .framework,
   .footer {
     width: min(100% - 28px, 620px);
@@ -661,6 +734,19 @@
 
   .relayActions p {
     grid-column: 1;
+  }
+
+  .relaySetup form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .relaySetup label,
+  .relaySetup input {
+    grid-column: 1 / -1;
+  }
+
+  .relaySetup input {
+    font-size: 16px;
   }
 
   .shareAction,

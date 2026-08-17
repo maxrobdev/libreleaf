@@ -1,0 +1,28 @@
+services:
+  relay:
+    build:
+      context: .
+      dockerfile: Dockerfile.libresend-relay
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    ports:
+      - "127.0.0.1:8788:8788"
+    environment:
+      LIBRESEND_ALLOWED_ORIGINS: ${LIBRESEND_ALLOWED_ORIGINS:-http://localhost:3000}
+      LIBRESEND_MAX_BYTES: ${LIBRESEND_MAX_BYTES:-26214400}
+      LIBRESEND_TTL_SECONDS: ${LIBRESEND_TTL_SECONDS:-900}
+      LIBRESEND_STORAGE_DIR: /var/lib/libresend
+      LIBRESEND_STORAGE_MAX_BYTES: ${LIBRESEND_STORAGE_MAX_BYTES:-2147483648}
+      LIBRESEND_STORAGE_MAX_OBJECTS: ${LIBRESEND_STORAGE_MAX_OBJECTS:-10000}
+    volumes:
+      - libresend-data:/var/lib/libresend
+
+volumes:
+  libresend-data:

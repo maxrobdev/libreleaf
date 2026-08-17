@@ -88,11 +88,11 @@ export function Developers() {
       <section className={styles.mcp} aria-labelledby="libresend-title">
         <div>
           <p>LIBRESEND</p>
-          <h2 id="libresend-title">Self-host encrypted file handoff.</h2>
+          <h2 id="libresend-title">Build or self-host encrypted handoff.</h2>
         </div>
         <div>
-          <code>handleLibreSendRelayRequest()</code>
-          <a href="https://github.com/maxrobdev/libreleaf/blob/main/docs/LIBRESEND.md" target="_blank" rel="noreferrer">Protocol and adapters ↗</a>
+          <code>SDK · Node · Docker · custom stores</code>
+          <a href="https://github.com/maxrobdev/libreleaf/blob/main/docs/LIBRESEND.md" target="_blank" rel="noreferrer">Framework and deployment ↗</a>
         </div>
       </section>
     </main>

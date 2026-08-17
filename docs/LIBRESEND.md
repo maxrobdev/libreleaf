@@ -1,6 +1,6 @@
 # LibreSend
 
-LibreSend is LibreLeaf's local-first handoff framework for EPUB, PDF and MOBI files and lawful access links. The `/send` route is the reference client. Local sharing and local saving need no server.
+LibreSend is LibreLeaf's local-first handoff framework for EPUB, PDF and MOBI files and lawful access links. The `/send` route is the reference client. Local sharing and saving need no server.
 
 ## Transports
 
@@ -8,24 +8,33 @@ LibreSend separates the file from the way it moves:
 
 1. **System share** passes the selected `File` to the browser's Web Share implementation. The operating system decides which installed apps and nearby-device routes are available.
 2. **Local save** uses a short-lived object URL. Closing the page or selecting another file revokes it.
-3. **Link handoff** shares a lawful source URL or copies it to the clipboard. Book result panels use this transport without proxying the book.
-4. **Encrypted relay** is optional. The client encrypts the whole file with AES-256-GCM, uploads only the opaque envelope, and puts the key in the URL fragment. The relay never receives that fragment.
+3. **Link handoff** shares a lawful source URL or copies it to the clipboard. Book results and Briefleaf use this without proxying content.
+4. **Encrypted relay** is optional. The client encrypts the complete file with AES-256-GCM, uploads only the opaque envelope and puts the key in the receive-link fragment.
 
-The public LibreLeaf deployment leaves the relay disabled. Self-hosters may enable it after choosing their storage, abuse, rate-limit, retention and jurisdiction policy.
+The public LibreLeaf deployment leaves the relay disabled. The reference client can test and use a self-hosted HTTPS relay for the current page session; it never turns LibreLeaf into a file proxy.
 
-## Run the reference relay
+## Run the relay
 
-The reference server requires Node 22 or newer and stores ciphertext only in process memory. It listens on loopback by default. The container runs the same dependency-free TypeScript handler with Node's type stripping; it does not install the web application's dependency tree.
+The reference server requires Node 22 or newer and listens on loopback by default. With no storage directory it holds ciphertext in process memory.
 
 ```sh
 npm run libresend:relay
 ```
 
-Or build the checked-in container. Set an exact browser origin before exposing it:
+For a persistent single-node relay, use the hardened Compose definition. Set an exact browser origin before exposing it:
+
+```sh
+LIBRESEND_ALLOWED_ORIGINS=https://books.example.org \
+  docker compose -f compose.libresend.yaml up -d --build
+```
+
+Compose binds the relay to `127.0.0.1:8788`; put an HTTPS reverse proxy in front. The container drops Linux capabilities, uses a read-only root filesystem, includes a health check and writes only encrypted envelopes to its named volume.
+
+The smaller in-memory container is useful for local or disposable deployments:
 
 ```sh
 docker build -f Dockerfile.libresend-relay -t libresend-relay .
-docker run --read-only --tmpfs /tmp -p 8788:8788 \
+docker run --read-only --tmpfs /tmp -p 127.0.0.1:8788:8788 \
   -e LIBRESEND_ALLOWED_ORIGINS=https://books.example.org \
   libresend-relay
 ```
@@ -39,22 +48,41 @@ Configuration:
 | `LIBRESEND_ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated exact browser origins; no wildcard. |
 | `LIBRESEND_MAX_BYTES` | `26214400` | Encrypted-envelope cap; hard maximum 200 MiB. |
 | `LIBRESEND_TTL_SECONDS` | `900` | 60 seconds to 24 hours. |
+| `LIBRESEND_STORAGE_DIR` | empty | Empty uses memory; a path enables atomic persistent storage. |
+| `LIBRESEND_STORAGE_MAX_BYTES` | `2147483648` | Total encrypted storage budget. |
+| `LIBRESEND_STORAGE_MAX_OBJECTS` | `10000` | Pending-transfer count budget. |
 
-The reference process applies a small per-address request bucket, exact CORS origins, content-type and protocol checks, byte caps, expiry, no-store headers and destructive one-use reads. Memory storage is intentionally single-process: restarting the process loses pending transfers, and multiple replicas do not share state.
+The server applies a per-address request bucket, exact CORS origins, content-type and protocol checks, byte caps, expiry, no-store headers and destructive one-use reads. Memory storage is intentionally single-process. The filesystem store writes mode-0600 versioned objects, publishes them atomically and renames a file to a unique claim before reading it; competing recipients cannot both receive it. It is for one host with a shared local volume, not multiple replicas on network storage.
 
-## Connect a self-hosted client
+## Connect a client
 
-For the Next/Vinext build, set `NEXT_PUBLIC_LIBRESEND_RELAY_URL` to the HTTPS relay origin. For the static Netlify client, add a fixed build-time tag to `netlify/send/index.html`:
+For the Next/Vinext build, set `NEXT_PUBLIC_LIBRESEND_RELAY_URL` to the HTTPS relay origin. For the static client, set the fixed build-time tag in `netlify/send/index.html`:
 
 ```html
 <meta name="libresend-relay-url" content="https://send.example.org" />
 ```
 
-The client accepts HTTPS relays, with plain HTTP allowed only for loopback development. Relay endpoints are configuration, not user input; arbitrary proxy targets are rejected.
+The `/send` page also accepts a self-hosted relay in its advanced section. It validates the capability endpoint and keeps the address only in the current page session. Plain HTTP is allowed only on loopback.
 
-## Custom storage adapter
+Generated receive links keep both the key and selected relay origin after `#`, so neither is sent to the LibreLeaf web server. The recipient still connects to that relay and therefore exposes ordinary network metadata to its operator.
 
-`lib/libresend/relay.ts` exports the portable Fetch API handler and the storage interface:
+## SDK surface
+
+`lib/libresend/index.ts` is the source entry point. It exports file validation, local share/link handoff, encryption, the relay client, the portable Fetch handler, storage interfaces and transport registry. It has no dependency on React or the LibreLeaf UI.
+
+```ts
+import {
+  createEncryptedRelayTransfer,
+  createBrowserTransportRegistry,
+  handleLibreSendRelayRequest,
+} from "./lib/libresend/index.ts";
+```
+
+The framework stays as ordinary TypeScript in the open repository rather than hiding core behaviour behind a hosted SDK. A downstream project can vendor it or expose this entry point in its own package manifest.
+
+## Custom storage
+
+`lib/libresend/relay.ts` exports the portable Fetch API handler and storage contract:
 
 ```ts
 interface LibreSendRelayStore {
@@ -64,21 +92,57 @@ interface LibreSendRelayStore {
 }
 ```
 
-`take` must be atomic and destructive. A durable adapter should encrypt its own storage, enforce the supplied expiry independently, avoid logging identifiers or request bodies, and delete failed/partial writes. Object stores should use a conditional delete or transaction so two recipients cannot retrieve the same transfer.
-
-Use the framework without the reference server:
+`take` must be atomic and destructive. A durable adapter should enforce expiry independently, avoid logging identifiers or request bodies, and delete failed writes. Object stores should use a transaction or conditional delete so two recipients cannot retrieve the same transfer.
 
 ```ts
-const response = await handleLibreSendRelayRequest(request, {
-  store: yourStore,
+return handleLibreSendRelayRequest(request, {
+  store: yourAtomicStore,
   allowedOrigins: ["https://books.example.org"],
   maxBytes: 10 * 1024 * 1024,
   ttlSeconds: 600,
   allowRequest: requestBudget,
+  storageName: "postgres",
 });
 ```
 
-Browser transports are also replaceable. `LibreSendTransportRegistry` ships with system-file share and share-or-copy-link adapters. A custom transport supplies a stable ID plus `available` and `send` methods; it receives the payload and browser context explicitly rather than reading global state.
+## Relay modules
+
+Modules are a deliberately small server extension boundary. `authorize` receives method, path and origin only. `onEvent` receives transfer ID, byte count and timestamps, never the encrypted body, file metadata, key or request object. Observer failures do not break a completed transfer.
+
+```ts
+const aggregateMetrics = {
+  id: "aggregate-metrics",
+  authorize: ({ origin }) => origin === "https://books.example.org",
+  onEvent(event) {
+    counters.increment(event.type, "bytes" in event ? event.bytes : 0);
+  },
+};
+
+return handleLibreSendRelayRequest(request, {
+  store: yourAtomicStore,
+  allowedOrigins: ["https://books.example.org"],
+  modules: [aggregateMetrics],
+});
+```
+
+Module IDs are unique and listed by the capability endpoint. Modules cannot see plaintext because encryption has already happened in the sender's browser. Do not use event hooks to build per-reader activity logs.
+
+## Custom browser transports
+
+`LibreSendTransportRegistry` ships with system-file share and share-or-copy-link adapters. A custom transport supplies a stable ID plus `available` and `send` methods. It receives the payload and browser context explicitly instead of reading global state. Duplicate IDs are rejected.
+
+```ts
+registry.register({
+  id: "reading-room",
+  label: "Reading-room inbox",
+  available: (payload) => payload.kind === "link",
+  async send(payload) {
+    if (payload.kind !== "link") throw new Error("Links only");
+    await yourInbox.add(payload.url);
+    return { transport: "reading-room", status: "sent" };
+  },
+});
+```
 
 ## Wire format
 
@@ -90,8 +154,8 @@ Protocol version 1 is an opaque binary envelope:
 N bytes  AES-GCM ciphertext and authentication tag
 ```
 
-The encrypted plaintext starts with a bounded JSON metadata length and metadata block, followed by the exact file bytes. The 256-bit key is base64url-encoded only in `#key=…`. Browsers do not send URL fragments in HTTP requests.
+The encrypted plaintext begins with a bounded JSON metadata block followed by the exact file bytes. The 256-bit key and relay origin are URL-encoded only after `#`. Browsers do not send URL fragments in HTTP requests. The app reads the fragment locally to locate the relay and decrypt the one-use envelope.
 
-## Limits of encrypted relays
+## Operational limits
 
-Encryption protects content confidentiality but does not remove operational responsibility. A relay can still be abused as an opaque file drop, and it still observes IP addresses, timing, envelope size and transfer identifiers. A public operator needs explicit logging minimisation, aggregate rate limits, takedown handling, storage lifecycle controls, capacity protection and legal review. LibreLeaf therefore ships the protocol and self-hostable code without silently enabling a public relay.
+Encryption protects content confidentiality but does not remove operator responsibility. A relay can still be abused as an opaque file drop and still observes IP addresses, timing, envelope size and transfer identifiers. A public operator needs logging minimisation, aggregate rate limits, takedown handling, lifecycle controls, capacity protection and legal review. LibreLeaf ships the protocol and self-hostable code without silently enabling a public relay.

@@ -85,7 +85,7 @@ Every substantive product request from the build conversation is represented bel
 
 ### LL-001 · LibreSend handoff framework
 
-- Status: framework implemented and deployed; physical-device verification pending
+- Status: framework v2 implemented; production deployment and physical-device verification pending
 - Owner: root agent
 - Build `/send` as a local-first tool for EPUB, PDF, and MOBI files.
 - Use the browser/OS file-share sheet where supported; files remain on the user's device.
@@ -93,10 +93,11 @@ Every substantive product request from the build conversation is represented bel
 - Do not claim direct proprietary integration where none exists.
 - Expose reusable file/link transports through an explicit registry so book routes and Briefleaf can hand off inline without navigating through `/send`.
 - Provide an optional self-hosted relay protocol: AES-256-GCM encryption in the browser, fragment-only keys, exact-origin CORS, byte/TTL/rate bounds, one-use retrieval, a portable Fetch handler, an injectable atomic storage interface, a loopback Node reference server, and a container build.
+- Provide a stable headless TypeScript entry point, memory and persistent single-node filesystem stores, privacy-bounded relay authorisation/event modules, session-only custom relay connection, self-describing receive links, and hardened Docker Compose deployment.
 - Keep the public relay disabled until there is an explicit abuse, retention, metadata, takedown, capacity, and jurisdiction operating decision.
 - Add crawlable metadata, navigation, accessibility, responsive states, and tests.
-- Acceptance: local share/save works without a server; book and RSS links hand off inline; a self-hoster can run the reference relay or implement the documented store/transport interfaces; the public deployment never silently stores files.
-- Verification: eleven focused tests cover EPUB/PDF/MOBI validation, exact Web Share payloads, share/copy link fallback, AES-GCM round trip and tamper failure, bounded streamed bodies and memory capacity, capability checks before encryption, exact origins, single-use relay deletion, and duplicate-safe custom transport registration. The dependency-free Node relay returned its declared capabilities on loopback. `npm run check` passed before deploy `6a82caaedcc807ea030492a0`; deployed desktop and 390 px layouts have no overflow and report the public relay as Off. Real-device share-sheet and cross-device relay verification remain required.
+- Acceptance: local share/save works without a server; book and RSS links hand off inline; a self-hoster can run the reference relay with volatile or persistent storage or implement the documented store/module/transport interfaces; a custom relay can be connected without proxying it through LibreLeaf; the public deployment never silently stores files.
+- Verification: fourteen focused tests cover EPUB/PDF/MOBI validation, exact Web Share payloads, share/copy fallback, AES-GCM round trip and tamper failure, bounded bodies and capacity, capability checks, exact origins, portable fragment-only relay links, persistent storage across instances, concurrent one-use claims, module authorisation/metadata-only events, single-use deletion, and duplicate-safe transports. The dependency-free Node process declared `filesystem` storage on loopback, `docker compose config --quiet` passed, and `npm run check` passed. Production and real-device share-sheet/cross-device verification remain required.
 - Next pass: test real EPUB/PDF/MOBI handoff on iPhone and Android, installed Apple Books/Kindle/KOReader targets, cross-device relay links on an operator-controlled test relay, interruption/retry behaviour, and accessibility with VoiceOver/TalkBack.
 
 ### LL-002 · Reliable curated lists

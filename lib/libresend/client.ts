@@ -16,6 +16,8 @@ export type RelayStatus = {
   ttlSeconds: number;
   encryption: string;
   retrieval: string;
+  storage?: string;
+  modules?: string[];
 };
 
 export function normaliseRelayUrl(value: string) {
@@ -73,7 +75,7 @@ export async function createEncryptedRelayTransfer(input: {
   const expiresAt = "expiresAt" in payload && typeof payload.expiresAt === "string" ? payload.expiresAt : "";
   const receiveUrl = new URL("/send", input.appUrl);
   receiveUrl.searchParams.set("receive", payload.id);
-  receiveUrl.hash = `key=${key}`;
+  receiveUrl.hash = new URLSearchParams({ key, relay: relayUrl }).toString();
   return { id: payload.id, expiresAt, receiveUrl: receiveUrl.href } satisfies RelayUpload;
 }
 

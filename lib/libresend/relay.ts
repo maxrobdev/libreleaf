@@ -17,6 +17,23 @@ export interface LibreSendRelayStore {
   prune(now: number): Promise<number>;
 }
 
+export type LibreSendRelayRequestContext = {
+  method: string;
+  pathname: string;
+  origin: string | null;
+};
+
+export type LibreSendRelayEvent =
+  | { type: "transfer.stored"; transferId: string; bytes: number; occurredAt: number; expiresAt: number }
+  | { type: "transfer.received"; transferId: string; bytes: number; occurredAt: number }
+  | { type: "transfer.missed"; transferId: string; occurredAt: number };
+
+export interface LibreSendRelayModule {
+  id: string;
+  authorize?(context: LibreSendRelayRequestContext): boolean | Promise<boolean>;
+  onEvent?(event: LibreSendRelayEvent): void | Promise<void>;
+}
+
 export class LibreSendRelayCapacityError extends Error {}
 
 export class MemoryLibreSendRelayStore implements LibreSendRelayStore {
@@ -66,9 +83,38 @@ export type LibreSendRelayConfig = {
   now?: () => number;
   randomBytes?: (length: number) => Uint8Array;
   allowRequest?: (request: Request) => boolean | Promise<boolean>;
+  modules?: LibreSendRelayModule[];
+  storageName?: string;
 };
 
 const transferIdPattern = /^[A-Za-z0-9_-]{24}$/;
+const moduleIdPattern = /^[a-z][a-z0-9-]{1,40}$/;
+
+function validateModules(modules: LibreSendRelayModule[]) {
+  const ids = new Set<string>();
+  for (const extension of modules) {
+    if (!moduleIdPattern.test(extension.id)) throw new Error("LibreSend relay module IDs use lowercase letters, numbers and hyphens.");
+    if (ids.has(extension.id)) throw new Error(`LibreSend relay module ${extension.id} is already registered.`);
+    ids.add(extension.id);
+  }
+}
+
+async function modulesAllowRequest(request: Request, modules: LibreSendRelayModule[]) {
+  const url = new URL(request.url);
+  const context: LibreSendRelayRequestContext = {
+    method: request.method,
+    pathname: url.pathname,
+    origin: request.headers.get("origin"),
+  };
+  for (const extension of modules) {
+    if (extension.authorize && !(await extension.authorize(context))) return false;
+  }
+  return true;
+}
+
+async function emitRelayEvent(modules: LibreSendRelayModule[], event: LibreSendRelayEvent) {
+  await Promise.allSettled(modules.map((extension) => extension.onEvent?.(event)));
+}
 
 function json(value: unknown, status: number, headers: HeadersInit = {}) {
   return new Response(JSON.stringify(value), {
@@ -134,6 +180,8 @@ export async function handleLibreSendRelayRequest(request: Request, config: Libr
   const now = config.now?.() ?? Date.now();
   const maxBytes = Math.min(Math.max(config.maxBytes ?? LIBRESEND_RELAY_DEFAULT_MAX_FILE_BYTES, 1024), 200 * 1024 * 1024);
   const ttlSeconds = Math.min(Math.max(config.ttlSeconds ?? LIBRESEND_RELAY_DEFAULT_TTL_SECONDS, 60), 24 * 60 * 60);
+  const modules = config.modules ?? [];
+  validateModules(modules);
   const cors = originHeaders(request, config.allowedOrigins ?? []);
   if (!cors) return json({ error: "Origin not allowed." }, 403);
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
@@ -146,13 +194,15 @@ export async function handleLibreSendRelayRequest(request: Request, config: Libr
       ttlSeconds,
       encryption: "client-side AES-256-GCM",
       retrieval: "single-use",
-      storage: config.store instanceof MemoryLibreSendRelayStore ? "memory" : "adapter",
+      storage: config.storageName ?? (config.store instanceof MemoryLibreSendRelayStore ? "memory" : "adapter"),
+      modules: modules.map((extension) => extension.id),
     }, 200, cors);
   }
 
   if (config.allowRequest && !(await config.allowRequest(request))) {
     return json({ error: "Request limit reached." }, 429, { ...cors, "retry-after": "60" });
   }
+  if (!(await modulesAllowRequest(request, modules))) return json({ error: "Request not authorised." }, 403, cors);
 
   if (url.pathname === "/v1/transfers" && request.method === "POST") {
     if (request.headers.get("x-libresend-version") !== LIBRESEND_RELAY_PROTOCOL) {
@@ -178,6 +228,7 @@ export async function handleLibreSendRelayRequest(request: Request, config: Libr
       if (error instanceof LibreSendRelayCapacityError) return json({ error: "Relay storage is at capacity." }, 503, { ...cors, "retry-after": "60" });
       throw error;
     }
+    await emitRelayEvent(modules, { type: "transfer.stored", transferId: id, bytes: body.byteLength, occurredAt: now, expiresAt });
     return json({ id, expiresAt: new Date(expiresAt).toISOString(), singleUse: true }, 201, cors);
   }
 
@@ -186,7 +237,11 @@ export async function handleLibreSendRelayRequest(request: Request, config: Libr
     const id = match[1];
     if (!transferIdPattern.test(id)) return json({ error: "Invalid transfer identifier." }, 400, cors);
     const value = await config.store.take(id, now);
-    if (!value) return json({ error: "Transfer not found, expired, or already received." }, 404, cors);
+    if (!value) {
+      await emitRelayEvent(modules, { type: "transfer.missed", transferId: id, occurredAt: now });
+      return json({ error: "Transfer not found, expired, or already received." }, 404, cors);
+    }
+    await emitRelayEvent(modules, { type: "transfer.received", transferId: id, bytes: value.body.byteLength, occurredAt: now });
     return new Response(value.body.slice().buffer, {
       status: 200,
       headers: {

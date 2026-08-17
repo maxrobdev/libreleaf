@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   canShareReaderFile,
@@ -12,6 +14,7 @@ import { decryptReaderFile, encryptReaderFile, isLibreSendEnvelope } from "../li
 import { createEncryptedRelayTransfer, getRelayStatus } from "../lib/libresend/client.ts";
 import { handleLibreSendRelayRequest, LibreSendRelayCapacityError, MemoryLibreSendRelayStore } from "../lib/libresend/relay.ts";
 import { LibreSendTransportRegistry } from "../lib/libresend/transports.ts";
+import { FilesystemLibreSendRelayStore } from "../tools/libresend-relay/filesystem-store.ts";
 
 test("LibreSend accepts bounded EPUB, PDF and MOBI selections without reading file contents", () => {
   assert.deepEqual(checkReaderFile({ name: "book.epub", size: 1_024, type: "application/epub+zip" }), { ok: true, format: "EPUB" });
@@ -106,6 +109,83 @@ test("portable relay stores only a bounded envelope and deletes it on first retr
   assert.equal(second.status, 404);
 });
 
+test("portable receive links carry a custom relay only in the fragment", async () => {
+  const file = new File(["portable"], "portable.epub", { type: "application/epub+zip" });
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = String(input);
+    if (url.endsWith("/v1/status")) {
+      return Response.json({ protocol: "1", maxBytes: 1024 * 1024, ttlSeconds: 900, encryption: "client-side AES-256-GCM", retrieval: "single-use", storage: "filesystem", modules: [] });
+    }
+    assert.equal(init?.method, "POST");
+    return Response.json({ id: "A".repeat(24), expiresAt: "2026-08-17T12:15:00.000Z", singleUse: true }, { status: 201 });
+  };
+  const transfer = await createEncryptedRelayTransfer({ file, relayUrl: "https://send.example.org", appUrl: "https://books.example", fetcher });
+  const receive = new URL(transfer.receiveUrl);
+  assert.equal(receive.searchParams.get("receive"), "A".repeat(24));
+  assert.equal(receive.searchParams.has("relay"), false);
+  const fragment = new URLSearchParams(receive.hash.slice(1));
+  assert.equal(fragment.get("relay"), "https://send.example.org");
+  assert.match(fragment.get("key") ?? "", /^[A-Za-z0-9_-]+$/);
+});
+
+test("filesystem storage survives a process boundary and claims a transfer once", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "libresend-store-"));
+  try {
+    const id = "B".repeat(24);
+    const firstProcess = new FilesystemLibreSendRelayStore({ directory, maxObjects: 4, maxBytes: 4096 });
+    await firstProcess.put({ id, body: new Uint8Array([1, 2, 3]), createdAt: 10, expiresAt: 100 });
+
+    const secondProcess = new FilesystemLibreSendRelayStore({ directory, maxObjects: 4, maxBytes: 4096 });
+    const [firstClaim, secondClaim] = await Promise.all([firstProcess.take(id, 20), secondProcess.take(id, 20)]);
+    const successful = [firstClaim, secondClaim].filter((value) => value !== null);
+    assert.equal(successful.length, 1);
+    assert.deepEqual(successful[0]?.body, new Uint8Array([1, 2, 3]));
+    assert.equal(await secondProcess.take(id, 20), null);
+
+    await secondProcess.put({ id: "C".repeat(24), body: new Uint8Array([4]), createdAt: 10, expiresAt: 15 });
+    assert.equal(await secondProcess.prune(20), 1);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("relay modules authorise transfer routes and receive metadata-only lifecycle events", async () => {
+  const events: Array<{ type: string; bytes?: number }> = [];
+  const store = new MemoryLibreSendRelayStore();
+  const extension = {
+    id: "test-policy",
+    authorize: ({ origin }: { origin: string | null }) => origin === "https://books.example",
+    onEvent: (event: { type: string; bytes?: number }) => { events.push({ type: event.type, bytes: event.bytes }); },
+  };
+  const status = await handleLibreSendRelayRequest(new Request("https://relay.example/v1/status"), { store, modules: [extension], storageName: "test" });
+  assert.deepEqual((await status.json() as { modules: string[]; storage: string }), { protocol: "1", maxBytes: 26214400, ttlSeconds: 900, encryption: "client-side AES-256-GCM", retrieval: "single-use", storage: "test", modules: ["test-policy"] });
+
+  const encrypted = await encryptReaderFile(new File(["module"], "module.epub", { type: "application/epub+zip" }));
+  const denied = await handleLibreSendRelayRequest(new Request("https://relay.example/v1/transfers", {
+    method: "POST",
+    headers: { "content-type": "application/octet-stream", "x-libresend-version": "1", origin: "https://wrong.example" },
+    body: encrypted.envelope.slice().buffer,
+  }), { store, modules: [extension], allowedOrigins: ["https://wrong.example"] });
+  assert.equal(denied.status, 403);
+
+  const config = {
+    store,
+    modules: [extension],
+    allowedOrigins: ["https://books.example"],
+    randomBytes: (length: number) => new Uint8Array(length).fill(8),
+    now: () => 100,
+  };
+  const upload = await handleLibreSendRelayRequest(new Request("https://relay.example/v1/transfers", {
+    method: "POST",
+    headers: { "content-type": "application/octet-stream", "x-libresend-version": "1", origin: "https://books.example" },
+    body: encrypted.envelope.slice().buffer,
+  }), config);
+  const id = (await upload.json() as { id: string }).id;
+  await handleLibreSendRelayRequest(new Request(`https://relay.example/v1/transfers/${id}`, { headers: { origin: "https://books.example" } }), config);
+  assert.deepEqual(events.map((event) => event.type), ["transfer.stored", "transfer.received"]);
+  assert.equal(events.every((event) => typeof event.bytes === "number"), true);
+});
+
 test("relay enforces exact origins, envelope type, size and expiry bounds", async () => {
   const store = new MemoryLibreSendRelayStore();
   const forbidden = await handleLibreSendRelayRequest(new Request("https://relay.example/v1/status", { headers: { origin: "https://wrong.example" } }), {
@@ -187,7 +267,9 @@ test("LibreSend exposes local and optional encrypted paths plus official device 
   assert.match(component, /MOBI is not in Amazon/);
   assert.match(component, /createEncryptedRelayTransfer/);
   assert.match(component, /receiveEncryptedRelayTransfer/);
-  assert.match(component, /relayEndpoint \? "Encrypted" : "Off"/);
+  assert.match(component, /relayEndpoint \? "Connected" : "Off"/);
+  assert.match(component, /Self-hosted relay/);
+  assert.match(component, /Test and use/);
   assert.doesNotMatch(component, /XMLHttpRequest|FormData|FileReader/);
   assert.match(page, /alternates: \{ canonical: "\/send" \}/);
   assert.match(navigation, /href: "\/send"/);

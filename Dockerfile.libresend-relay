@@ -4,9 +4,15 @@ WORKDIR /srv/libreleaf
 COPY lib/libresend ./lib/libresend
 COPY tools/libresend-relay ./tools/libresend-relay
 
+RUN mkdir -p /var/lib/libresend && chown node:node /var/lib/libresend
+
 ENV LIBRESEND_HOST=0.0.0.0
 ENV LIBRESEND_PORT=8788
 EXPOSE 8788
+VOLUME ["/var/lib/libresend"]
 USER node
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:8788/v1/status').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
 
 CMD ["node", "--experimental-strip-types", "tools/libresend-relay/server.ts"]

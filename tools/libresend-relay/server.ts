@@ -3,6 +3,7 @@ import {
   handleLibreSendRelayRequest,
   MemoryLibreSendRelayStore,
 } from "../../lib/libresend/relay.ts";
+import { FilesystemLibreSendRelayStore } from "./filesystem-store.ts";
 
 function boundedNumber(value: string | undefined, fallback: number, minimum: number, maximum: number) {
   const parsed = Number(value);
@@ -17,7 +18,13 @@ const allowedOrigins = (process.env.LIBRESEND_ALLOWED_ORIGINS || "http://localho
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
-const store = new MemoryLibreSendRelayStore();
+const storageDirectory = process.env.LIBRESEND_STORAGE_DIR?.trim() || "";
+const storageMaxBytes = boundedNumber(process.env.LIBRESEND_STORAGE_MAX_BYTES, 2 * 1024 * 1024 * 1024, maxBytes, 1024 * 1024 * 1024 * 1024);
+const storageMaxObjects = boundedNumber(process.env.LIBRESEND_STORAGE_MAX_OBJECTS, 10_000, 1, 100_000);
+const store = storageDirectory
+  ? new FilesystemLibreSendRelayStore({ directory: storageDirectory, maxBytes: storageMaxBytes, maxObjects: storageMaxObjects })
+  : new MemoryLibreSendRelayStore({ maxBytes: storageMaxBytes, maxObjects: storageMaxObjects });
+const storageName = storageDirectory ? "filesystem" : "memory";
 
 const rateBuckets = new Map<string, { window: number; count: number }>();
 function allowAddress(address: string) {
@@ -75,6 +82,7 @@ const server = createServer(async (incoming, outgoing) => {
       ttlSeconds,
       allowedOrigins,
       allowRequest: () => allowAddress(address),
+      storageName,
     });
     outgoing.writeHead(response.status, Object.fromEntries(response.headers.entries()));
     outgoing.end(new Uint8Array(await response.arrayBuffer()));
@@ -88,4 +96,5 @@ server.listen(port, host, () => {
   process.stdout.write(`LibreSend relay listening on http://${host}:${port}\n`);
   process.stdout.write(`Allowed origins: ${allowedOrigins.join(", ")}\n`);
   process.stdout.write(`Limits: ${maxBytes} bytes, ${ttlSeconds} seconds, one retrieval\n`);
+  process.stdout.write(`Storage: ${storageName}${storageDirectory ? ` (${storageDirectory})` : ""}\n`);
 });
