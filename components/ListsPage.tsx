@@ -377,14 +377,14 @@ export default function ListsPage() {
               </span>
               <span className={styles.previewStack} aria-hidden="true">
                 {list.books.slice(0, 4).map((book, bookIndex) => (
-                  <span data-tone={(listIndex + bookIndex) % 6} key={book.title}>{book.title.slice(0, 1)}</span>
+                  <span data-tone={(listIndex + bookIndex) % 6} key={`${book.title}-${bookIndex}`}>{book.title.slice(0, 1)}</span>
                 ))}
               </span>
               <span className={styles.topicCount}>{list.books.length}</span>
               <span className={styles.chevron} aria-hidden="true">↓</span>
             </summary>
             <div className={styles.topicGrid}>
-              {list.books.map((book, bookIndex) => <CuratedItem book={book} tone={(listIndex + bookIndex) % 6} key={`${list.id}-${book.title}`} />)}
+              {list.books.map((book, bookIndex) => <CuratedItem book={book} tone={(listIndex + bookIndex) % 6} key={`${list.id}-${book.title}-${bookIndex}`} />)}
             </div>
           </details>
         ))}
