@@ -16,7 +16,11 @@ The Wikisource, DOAB, and Library of Congress integrations require no API key. T
 
 The Library of Congress integration requests only the `pagination` and `results` response attributes and filters for digitized, unrestricted records. It still validates every returned item and only exposes files hosted on `loc.gov` domains. The Library's own API documentation notes that the books endpoint is best for digitized books rather than complete catalogue coverage.
 
-Open Library and DOAB remain retryable when they time out; their cursors are not advanced or marked exhausted. In each resolver request, Open Library is bounded to a two-second attempt plus one one-second retry, while DOAB is bounded to 2.5 seconds. This keeps a stalled catalogue from delaying healthy Gutendex, Wikisource, or Library of Congress results indefinitely.
+Every catalogue remains retryable when it times out; its cursor is not advanced or marked exhausted. All five sources start concurrently and share a 2.5-second first-results deadline. Each adapter's narrower timeout still applies, but no adapter may extend the overall search beyond the shared upstream budget. Open Library is attempted once per request; an unchanged cursor makes the next page request the retry instead of delaying healthy sources with an inline retry.
+
+Successful source pages are retained in a bounded, process-local cache for up to 24 hours as failure-only fallback. If the exact source, query, field, region and cursor page later fails, LibreLeaf may show that page with status `stale`; it does not advance that source cursor and the next request retries it. Two consecutive failures open a 30-second per-source circuit inside that Edge isolate. A circuit-open source is labelled `deferred`, not searched, and its cursor remains unchanged. This memory is opportunistic and is neither durable nor shared between Edge isolates.
+
+Search responses keep the compact `sources` status map and expose bounded `sourceHealth` diagnostics: status, rounded duration, whether the source was attempted, stale-cache use, and local circuit state. They do not expose reader queries, upstream URLs, raw errors or infrastructure details. Production logs use the same bounded metadata. An all-source failure returns the unchanged cursor with HTTP 502.
 
 ## Rights context
 

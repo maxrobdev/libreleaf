@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { GET, parseStandardEbooksFeed } from "../app/api/lists/route";
+import { CURATED_LISTS } from "../components/curatedLists";
 
 const atom = `<feed>
   <updated>2026-08-15T20:04:24Z</updated>
@@ -51,4 +53,35 @@ test("returns useful partial lists when Open Library is unavailable", async (con
   assert.equal(payload.partial, true);
   assert.equal(payload.lists.find((list: { id: string }) => list.id === "gutenberg-popular").state, "live");
   assert.equal(payload.lists.find((list: { id: string }) => list.id === "open-library-trending").state, "unavailable");
+});
+
+test("ships stable topic lists independently of live sources", () => {
+  const required = ["classics", "strange-fiction", "nonfiction", "history", "philosophy", "science", "politics", "poetry", "children", "short-reads"];
+  assert.deepEqual(required.filter((id) => !CURATED_LISTS.some((list) => list.id === id)), []);
+  assert.ok(CURATED_LISTS.every((list) => list.books.length >= 6));
+  assert.ok(CURATED_LISTS.length >= 20);
+  assert.ok(CURATED_LISTS.reduce((total, list) => total + list.books.length, 0) >= 160);
+  assert.equal(new Set(CURATED_LISTS.map((list) => list.id)).size, CURATED_LISTS.length);
+});
+
+test("routes the production lists feed before the SPA fallback", async () => {
+  const config = await readFile(new URL("../netlify.toml", import.meta.url), "utf8");
+  const listsRoute = config.indexOf('from = "/api/lists"');
+  const spaFallback = config.indexOf('from = "/*"');
+  assert.ok(listsRoute >= 0);
+  assert.ok(spaFallback > listsRoute);
+});
+
+test("keeps list sections collapsed and mobile grids dense", async () => {
+  const page = await readFile(new URL("../components/ListsPage.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../components/ListsPage.module.css", import.meta.url), "utf8");
+  assert.doesNotMatch(page, /<details[^>]*\sopen(?:\s|=|>)/);
+  assert.match(page, /<summary>[\s\S]*\{book\.title\}[\s\S]*<\/summary>/);
+  assert.match(page, /resolveCuratedBook/);
+  assert.match(page, /RESOLVER_CACHE_KEY/);
+  assert.match(page, /onToggle=/);
+  assert.doesNotMatch(page, />Resolve access</);
+  assert.match(css, /\.topicGrid\s*\{[\s\S]*grid-template-columns:\s*repeat\(6,/);
+  assert.match(css, /\.topicGrid\s*\{\s*grid-template-columns:\s*repeat\(2,/);
+  assert.match(css, /\.grid\s*\{\s*grid-template-columns:\s*repeat\(2,/);
 });

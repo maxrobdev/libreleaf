@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { GET } from "../app/api/search/route.ts";
+import { GET, resetSearchReliabilityForTests } from "../app/api/search/route.ts";
 
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  resetSearchReliabilityForTests();
 });
 
 function gutenbergBook(id: number, title: string, author: string) {
@@ -39,6 +40,11 @@ function emptyWikisource() {
 
 function emptyLibraryOfCongress() {
   return { pagination: { current: 1, total: 0, of: 0, next: null }, results: [] };
+}
+
+function decodedCursor(value: string) {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(Buffer.from(base64, "base64").toString("utf8"));
 }
 
 test("returns work provenance, exact clusters, totals and a progressive cursor", async () => {
@@ -98,7 +104,7 @@ test("returns work provenance, exact clusters, totals and a progressive cursor",
   assert.match(merged.offers[0].rights.note, /United States/);
   assert.match(merged.why.at(-1), /Exact normalized title/);
   assert.match(merged.canonicalId, /^llw1\./);
-  assert.match(merged.canonicalUrl, /\/search\/\?.*work=llw1/);
+  assert.match(merged.canonicalUrl, /\/\?.*work=llw1/);
   assert.equal(merged.ranking.method, "rrf-v1");
   assert.deepEqual(merged.ranking.sourceRanks, [
     { source: "Open Library", rank: 1 },
@@ -180,7 +186,7 @@ test("uses cursor offsets and ends pagination when both sources are exhausted", 
   });
 });
 
-test("retries transient Open Library failures with a smaller page and advances by that page", async () => {
+test("reports an Open Library timeout without an inline retry", async () => {
   let libraryCalls = 0;
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));
@@ -191,26 +197,17 @@ test("retries transient Open Library failures with a smaller page and advances b
     if (url.hostname === "directory.doabooks.org") return Response.json([]);
     if (url.hostname === "www.loc.gov") return Response.json(emptyLibraryOfCongress());
     libraryCalls += 1;
-    if (libraryCalls === 1) throw new DOMException("timed out", "TimeoutError");
-    assert.equal(url.searchParams.get("limit"), "16");
-    return Response.json({ numFound: 40, docs: [openLibraryBook("/works/OL1W", "Other", "Writer B")] });
+    throw new DOMException("timed out", "TimeoutError");
   };
-  let response = await GET(new Request("https://libreleaf.test/api/search?q=test"));
-  let body = await response.json();
+  const response = await GET(new Request("https://libreleaf.test/api/search?q=test"));
+  const body = await response.json();
   assert.equal(response.status, 200);
-  assert.equal(libraryCalls, 2);
-  assert.equal(body.sources.openLibrary, "ok");
-
-  globalThis.fetch = async (input) => {
-    const url = new URL(String(input));
-    assert.equal(url.hostname, "openlibrary.org");
-    assert.equal(url.searchParams.get("offset"), "16");
-    return Response.json({ numFound: 17, docs: [openLibraryBook("/works/OL2W", "Last", "Writer C")] });
-  };
-  response = await GET(new Request(`https://libreleaf.test/api/search?q=test&cursor=${encodeURIComponent(body.nextCursor)}`));
-  body = await response.json();
-  assert.equal(response.status, 200);
-  assert.equal(body.nextCursor, null);
+  assert.equal(libraryCalls, 1);
+  assert.equal(body.sources.openLibrary, "timeout");
+  assert.equal(body.sourceHealth.openLibrary.attempted, true);
+  assert.equal(body.sourceHealth.openLibrary.cache, "none");
+  assert.ok(body.sourceHealth.openLibrary.durationMs <= body.searchTiming.firstResultsBudgetMs);
+  assert.equal(decodedCursor(body.nextCursor).o, 0);
 });
 
 test("returns partial results and preserves a timed-out source for retry", async () => {
@@ -245,6 +242,119 @@ test("returns partial results and preserves a timed-out source for retry", async
   body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.nextCursor, null);
+});
+
+test("returns fast-source books when one source consumes the first-results budget", async () => {
+  resetSearchReliabilityForTests(40);
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input));
+    if (url.hostname === "gutendex.com") {
+      return Response.json({ count: 1, next: null, results: [gutenbergBook(1, "Fast result", "Writer, A")] });
+    }
+    if (url.hostname === "openlibrary.org") return Response.json({ numFound: 0, docs: [] });
+    if (url.hostname === "en.wikisource.org") return Response.json(emptyWikisource());
+    if (url.hostname === "directory.doabooks.org") return Response.json([]);
+    assert.equal(url.hostname, "www.loc.gov");
+    return new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (signal?.aborted) reject(signal.reason);
+      signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+    });
+  };
+
+  const started = Date.now();
+  const response = await GET(new Request("https://libreleaf.test/api/search?q=fast"));
+  const elapsed = Date.now() - started;
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.ok(elapsed < 500, `search took ${elapsed}ms`);
+  assert.equal(body.books[0].title, "Fast result");
+  assert.equal(body.sources.libraryOfCongress, "timeout");
+  assert.equal(body.sourceHealth.libraryOfCongress.durationMs, 40);
+  assert.equal(body.searchTiming.firstResultsBudgetMs, 40);
+  assert.equal(decodedCursor(body.nextCursor).l, 0);
+});
+
+test("serves an exact stale source page after failure without advancing that source cursor", async () => {
+  const doabItem = {
+    uuid: "doab-stale",
+    name: "Cached Open Book",
+    handle: "20.500.12854/stale",
+    metadata: [
+      { key: "dc.title", value: "Cached Open Book" },
+      { key: "dc.contributor.author", value: "Writer, Cache" },
+      { key: "dc.identifier.uri", value: "https://directory.doabooks.org/handle/20.500.12854/stale" },
+    ],
+    bitstreams: [],
+  };
+  let failDoab = false;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "gutendex.com") return Response.json({ count: 0, next: null, results: [] });
+    if (url.hostname === "openlibrary.org") return Response.json({ numFound: 0, docs: [] });
+    if (url.hostname === "en.wikisource.org") return Response.json(emptyWikisource());
+    if (url.hostname === "www.loc.gov") return Response.json(emptyLibraryOfCongress());
+    if (failDoab) throw new DOMException("timed out", "TimeoutError");
+    return Response.json([doabItem]);
+  };
+
+  let response = await GET(new Request("https://libreleaf.test/api/search?q=cache-check"));
+  assert.equal(response.status, 200);
+  failDoab = true;
+  response = await GET(new Request("https://libreleaf.test/api/search?q=cache-check"));
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.partial, true);
+  assert.equal(body.sources.doab, "stale");
+  assert.equal(body.sourceHealth.doab.cache, "stale");
+  assert.equal(body.sourceHealth.doab.attempted, true);
+  const cachedBook = body.books.find((book: { id: string }) => book.id === "doab-doab-stale");
+  assert.equal(cachedBook.sourceRecords[0].source, "DOAB");
+  assert.equal(decodedCursor(body.nextCursor).d, 0);
+  assert.equal(decodedCursor(body.nextCursor).dd, false);
+});
+
+test("opens a short per-source circuit after repeated failures and preserves its cursor", async () => {
+  let doabCalls = 0;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "gutendex.com") return Response.json({ count: 0, next: null, results: [] });
+    if (url.hostname === "openlibrary.org") return Response.json({ numFound: 0, docs: [] });
+    if (url.hostname === "en.wikisource.org") return Response.json(emptyWikisource());
+    if (url.hostname === "www.loc.gov") return Response.json(emptyLibraryOfCongress());
+    doabCalls += 1;
+    throw new DOMException("timed out", "TimeoutError");
+  };
+
+  await GET(new Request("https://libreleaf.test/api/search?q=circuit-check"));
+  await GET(new Request("https://libreleaf.test/api/search?q=circuit-check"));
+  const response = await GET(new Request("https://libreleaf.test/api/search?q=circuit-check"));
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(doabCalls, 2);
+  assert.equal(body.sources.doab, "deferred");
+  assert.equal(body.sourceHealth.doab.attempted, false);
+  assert.equal(body.sourceHealth.doab.circuit, "open");
+  assert.equal(decodedCursor(body.nextCursor).d, 0);
+});
+
+test("returns the unchanged cursor when every source fails", async () => {
+  globalThis.fetch = async () => {
+    throw new DOMException("timed out", "TimeoutError");
+  };
+  const response = await GET(new Request("https://libreleaf.test/api/search?q=all-down"));
+  const body = await response.json();
+  const cursor = decodedCursor(body.nextCursor);
+
+  assert.equal(response.status, 502);
+  assert.deepEqual(
+    { g: cursor.g, o: cursor.o, w: cursor.w, d: cursor.d, l: cursor.l },
+    { g: 1, o: 0, w: 0, d: 0, l: 0 },
+  );
+  assert.equal(Object.values(body.sourceHealth).every((source: unknown) => (source as { attempted: boolean }).attempted), true);
 });
 
 test("rejects malformed cursors without calling upstreams", async () => {

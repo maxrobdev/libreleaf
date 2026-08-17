@@ -8,11 +8,13 @@ import type {
   Rights,
   RightsRegion,
   SearchMode,
+  SourceFetch,
   SourcePage,
   SourceRecord,
 } from "../../../lib/sources/types.ts";
 import { wikisourceAdapter } from "../../../lib/sources/wikisource.ts";
 import { canonicalWorkUrl, stableWorkId } from "../../../lib/work-identity.ts";
+import { publicApiMethodNotAllowed, publicApiOptions, withPublicApiHeaders } from "../../../lib/public-api.ts";
 
 type GutendexBook = {
   id: number;
@@ -30,7 +32,8 @@ type OpenLibraryDoc = {
   ebook_access?: "public" | "borrowable" | "printdisabled" | "no_ebook";
 };
 
-type SourceStatus = "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
+type SourceStatus = "ok" | "stale" | "deferred" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
+type SourceKey = "gutenberg" | "openLibrary" | "wikisource" | "doab" | "libraryOfCongress";
 
 type CursorState = {
   v: 1;
@@ -64,6 +67,27 @@ type OpenLibraryPage = {
   pageSize: number;
 };
 
+type SearchSourcePage = GutendexPage | OpenLibraryPage | SourcePage;
+
+type SourceHealth = {
+  status: SourceStatus;
+  durationMs: number;
+  attempted: boolean;
+  cache: "none" | "stale";
+  circuit: "closed" | "open";
+};
+
+type CachedSourcePage = {
+  storedAt: number;
+  value: SearchSourcePage;
+};
+
+type SourceCircuit = {
+  failures: number;
+  openUntil: number;
+  probing: boolean;
+};
+
 const GUTENDEX_PAGE_SIZE = 32;
 const OPEN_LIBRARY_PAGE_SIZE = 32;
 const LIBRARY_OF_CONGRESS_PAGE_SIZE = 20;
@@ -74,10 +98,17 @@ const MAX_CURSOR_LENGTH = 384;
 const MAX_UPSTREAM_TOTAL = 100_000_000;
 const UPSTREAM_TIMEOUT_MS = 6_000;
 const OPEN_LIBRARY_TIMEOUT_MS = 2_000;
-const OPEN_LIBRARY_RETRY_TIMEOUT_MS = 1_000;
-const OPEN_LIBRARY_RETRY_PAGE_SIZE = 16;
 const OPEN_LIBRARY_FIELDS = "key,title,author_name,first_publish_year,cover_i,ebook_access";
 const RRF_K = 60;
+const DEFAULT_FIRST_RESULTS_BUDGET_MS = 2_500;
+const SOURCE_CACHE_LIMIT = 128;
+const SOURCE_STALE_MS = 24 * 60 * 60 * 1_000;
+const CIRCUIT_FAILURE_THRESHOLD = 2;
+const CIRCUIT_OPEN_MS = 30_000;
+
+let firstResultsBudgetMs = DEFAULT_FIRST_RESULTS_BUDGET_MS;
+const sourcePageCache = new Map<string, CachedSourcePage>();
+const sourceCircuits = new Map<SourceKey, SourceCircuit>();
 
 const successCacheHeaders = {
   "Cache-Control": "public, max-age=60, s-maxage=900, stale-while-revalidate=86400",
@@ -121,7 +152,7 @@ const gutenbergRights: Rights = {
 class SearchRequestError extends Error {}
 
 class UpstreamError extends Error {
-  constructor(readonly kind: "timeout" | "rate-limited" | "transient" | "unavailable") {
+  constructor(readonly kind: "timeout" | "rate-limited" | "transient" | "unavailable" | "deferred") {
     super(kind);
   }
 }
@@ -139,11 +170,15 @@ function nullableTotal(value: unknown): value is number | null {
 }
 
 function searchMode(value: string | null): SearchMode {
-  return value === "title" || value === "author" || value === "subject" ? value : "q";
+  if (value === null || value === "" || value === "q") return "q";
+  if (value === "title" || value === "author" || value === "subject") return value;
+  throw new SearchRequestError("Invalid search mode.");
 }
 
 function rightsRegion(value: string | null): RightsRegion {
-  return value === "US" || value === "GLOBAL" ? value : "GB";
+  if (value === null || value === "" || value === "GB") return "GB";
+  if (value === "US" || value === "GLOBAL") return value;
+  throw new SearchRequestError("Invalid rights region.");
 }
 
 function initialCursor(pageValue: string | null): CursorState {
@@ -272,8 +307,8 @@ function upstreamTotal(value: unknown): number | null {
   return boundedInteger(value, 0, MAX_UPSTREAM_TOTAL) ? value : null;
 }
 
-async function fetchGutendex(url: string): Promise<GutendexPage> {
-  const payload = await fetchJson(url);
+async function fetchGutendex(url: string, sourceFetch: SourceFetch = fetchJson): Promise<GutendexPage> {
+  const payload = await sourceFetch(url);
   if (!isRecord(payload) || !Array.isArray(payload.results)) {
     throw new Error("Gutendex returned an invalid response.");
   }
@@ -287,11 +322,11 @@ async function fetchGutendex(url: string): Promise<GutendexPage> {
   };
 }
 
-async function fetchOpenLibrary(url: string, timeout = OPEN_LIBRARY_TIMEOUT_MS): Promise<OpenLibraryPage> {
-  const payload = await fetchJson(
+async function fetchOpenLibrary(url: string, sourceFetch: SourceFetch = fetchJson): Promise<OpenLibraryPage> {
+  const payload = await sourceFetch(
     url,
     "LibreLeaf/0.1 (+https://github.com/maxrobdev/libreleaf)",
-    timeout,
+    OPEN_LIBRARY_TIMEOUT_MS,
   );
   if (!isRecord(payload) || !Array.isArray(payload.docs)) {
     throw new Error("Open Library returned an invalid response.");
@@ -310,23 +345,122 @@ async function fetchOpenLibrary(url: string, timeout = OPEN_LIBRARY_TIMEOUT_MS):
   };
 }
 
-function isRetryableOpenLibraryError(error: unknown) {
-  return error instanceof UpstreamError
-    && (error.kind === "timeout" || error.kind === "rate-limited" || error.kind === "transient");
+function statusForFailure(error: unknown): Exclude<SourceStatus, "ok" | "stale" | "exhausted"> {
+  if (error instanceof UpstreamError) {
+    if (error.kind === "timeout") return "timeout";
+    if (error.kind === "rate-limited") return "rate-limited";
+    if (error.kind === "deferred") return "deferred";
+  }
+  return "unavailable";
 }
 
-async function fetchOpenLibraryWithRetry(url: string, gutenbergIsAvailable: () => Promise<boolean>) {
-  try {
-    return await fetchOpenLibrary(url);
-  } catch (error) {
-    if (!isRetryableOpenLibraryError(error)) throw error;
-    // Avoid extending an already fully failed request. Once Gutenberg has
-    // settled, make one smaller, shorter retry for transient OL failures.
-    if (!await gutenbergIsAvailable()) throw error;
-    const retryUrl = new URL(url);
-    retryUrl.searchParams.set("limit", String(OPEN_LIBRARY_RETRY_PAGE_SIZE));
-    return fetchOpenLibrary(retryUrl.toString(), OPEN_LIBRARY_RETRY_TIMEOUT_MS);
+function quantizedDuration(startedAt: number, finishedAt: number) {
+  const elapsed = Math.max(0, finishedAt - startedAt);
+  return Math.min(firstResultsBudgetMs, Math.ceil(elapsed / 25) * 25);
+}
+
+function cachedSourcePage<T extends SearchSourcePage>(key: string, now: number): T | undefined {
+  const cached = sourcePageCache.get(key);
+  if (!cached) return undefined;
+  if (now - cached.storedAt > SOURCE_STALE_MS) {
+    sourcePageCache.delete(key);
+    return undefined;
   }
+  sourcePageCache.delete(key);
+  sourcePageCache.set(key, cached);
+  return cached.value as T;
+}
+
+function rememberSourcePage(key: string, value: SearchSourcePage, now: number) {
+  sourcePageCache.delete(key);
+  sourcePageCache.set(key, { storedAt: now, value });
+  while (sourcePageCache.size > SOURCE_CACHE_LIMIT) {
+    const oldest = sourcePageCache.keys().next().value as string | undefined;
+    if (!oldest) break;
+    sourcePageCache.delete(oldest);
+  }
+}
+
+function recordSourceFailure(source: SourceKey, now: number) {
+  const current = sourceCircuits.get(source) ?? { failures: 0, openUntil: 0, probing: false };
+  const failures = current.failures + 1;
+  sourceCircuits.set(source, {
+    failures,
+    openUntil: failures >= CIRCUIT_FAILURE_THRESHOLD ? now + CIRCUIT_OPEN_MS : 0,
+    probing: false,
+  });
+}
+
+function sourceCircuitState(source: SourceKey, now: number) {
+  const current = sourceCircuits.get(source);
+  if (!current) return { skip: false, state: "closed" as const };
+  if (current.openUntil > now) return { skip: true, state: "open" as const };
+  if (current.openUntil > 0) {
+    if (current.probing) return { skip: true, state: "open" as const };
+    current.probing = true;
+  }
+  return { skip: false, state: current.openUntil > 0 ? "open" as const : "closed" as const };
+}
+
+async function reliableSource<T extends SearchSourcePage>(
+  source: SourceKey,
+  cacheKey: string,
+  operation: () => Promise<T>,
+  health: Partial<Record<SourceKey, SourceHealth>>,
+): Promise<T> {
+  const startedAt = Date.now();
+  const circuit = sourceCircuitState(source, startedAt);
+  if (circuit.skip) {
+    const cached = cachedSourcePage<T>(cacheKey, startedAt);
+    health[source] = {
+      status: cached ? "stale" : "deferred",
+      durationMs: 0,
+      attempted: false,
+      cache: cached ? "stale" : "none",
+      circuit: "open",
+    };
+    if (cached) return cached;
+    throw new UpstreamError("deferred");
+  }
+
+  try {
+    const value = await operation();
+    const finishedAt = Date.now();
+    rememberSourcePage(cacheKey, value, finishedAt);
+    sourceCircuits.delete(source);
+    health[source] = {
+      status: "ok",
+      durationMs: quantizedDuration(startedAt, finishedAt),
+      attempted: true,
+      cache: "none",
+      circuit: "closed",
+    };
+    return value;
+  } catch (error) {
+    const finishedAt = Date.now();
+    recordSourceFailure(source, finishedAt);
+    const cached = cachedSourcePage<T>(cacheKey, finishedAt);
+    const opened = (sourceCircuits.get(source)?.openUntil ?? 0) > finishedAt;
+    health[source] = {
+      status: cached ? "stale" : statusForFailure(error),
+      durationMs: quantizedDuration(startedAt, finishedAt),
+      attempted: true,
+      cache: cached ? "stale" : "none",
+      circuit: opened ? "open" : circuit.state,
+    };
+    if (cached) return cached;
+    throw error;
+  }
+}
+
+function sourceCacheKey(source: SourceKey, query: string, by: SearchMode, region: RightsRegion, position: number) {
+  return JSON.stringify([source, query, by, region, position]);
+}
+
+export function resetSearchReliabilityForTests(budgetMs = DEFAULT_FIRST_RESULTS_BUDGET_MS) {
+  sourcePageCache.clear();
+  sourceCircuits.clear();
+  firstResultsBudgetMs = budgetMs;
 }
 
 function safeGutenbergUrl(value: unknown): string | undefined {
@@ -665,30 +799,31 @@ function advanceCursor(
   wikisourceResult: PromiseSettledResult<SourcePage> | undefined,
   doabResult: PromiseSettledResult<SourcePage> | undefined,
   libraryOfCongressResult: PromiseSettledResult<SourcePage> | undefined,
+  statuses: Record<SourceKey, SourceStatus>,
 ) {
   const next = { ...current };
 
-  if (gutenbergResult?.status === "fulfilled") {
+  if (gutenbergResult?.status === "fulfilled" && statuses.gutenberg === "ok") {
     next.gt = gutenbergResult.value.total ?? next.gt;
     next.gd = !gutenbergResult.value.hasMore || current.g >= MAX_PAGE;
     if (!next.gd) next.g = current.g + 1;
   }
-  if (libraryResult?.status === "fulfilled") {
+  if (libraryResult?.status === "fulfilled" && statuses.openLibrary === "ok") {
     next.ot = libraryResult.value.total ?? next.ot;
     next.od = !libraryResult.value.hasMore || current.o >= MAX_OPEN_LIBRARY_OFFSET;
     if (!next.od) next.o = current.o + libraryResult.value.pageSize;
   }
-  if (wikisourceResult?.status === "fulfilled") {
+  if (wikisourceResult?.status === "fulfilled" && statuses.wikisource === "ok") {
     next.wt = wikisourceResult.value.total ?? next.wt;
     next.wd = !wikisourceResult.value.hasMore || current.w >= MAX_ADAPTER_OFFSET;
     if (!next.wd) next.w = current.w + wikisourceResult.value.advanceBy;
   }
-  if (doabResult?.status === "fulfilled") {
+  if (doabResult?.status === "fulfilled" && statuses.doab === "ok") {
     next.dt = doabResult.value.total ?? next.dt;
     next.dd = !doabResult.value.hasMore || current.d >= MAX_ADAPTER_OFFSET;
     if (!next.dd) next.d = current.d + doabResult.value.advanceBy;
   }
-  if (libraryOfCongressResult?.status === "fulfilled") {
+  if (libraryOfCongressResult?.status === "fulfilled" && statuses.libraryOfCongress === "ok") {
     next.lt = libraryOfCongressResult.value.total ?? next.lt;
     next.ld = !libraryOfCongressResult.value.hasMore || current.l >= MAX_ADAPTER_OFFSET;
     if (!next.ld) next.l = current.l + libraryOfCongressResult.value.advanceBy;
@@ -697,52 +832,100 @@ function advanceCursor(
   return next;
 }
 
-function sourceStatus(done: boolean, result: PromiseSettledResult<unknown> | undefined): SourceStatus {
+function sourceStatus(
+  done: boolean,
+  result: PromiseSettledResult<unknown> | undefined,
+  health: SourceHealth | undefined,
+): SourceStatus {
   if (done) return "exhausted";
+  if (health) return health.status;
   if (result?.status === "fulfilled") return "ok";
   if (result?.status === "rejected" && result.reason instanceof UpstreamError) {
     if (result.reason.kind === "timeout") return "timeout";
     if (result.reason.kind === "rate-limited") return "rate-limited";
+    if (result.reason.kind === "deferred") return "deferred";
   }
   return "unavailable";
 }
 
-export async function GET(request: Request) {
+function sourceHealthFor(
+  done: boolean,
+  status: SourceStatus,
+  health: SourceHealth | undefined,
+): SourceHealth {
+  if (health) return { ...health, status };
+  return {
+    status: done ? "exhausted" : status,
+    durationMs: 0,
+    attempted: false,
+    cache: "none",
+    circuit: "closed",
+  };
+}
+
+async function handleSearchRequest(request: Request) {
   try {
+    const searchStartedAt = Date.now();
+    const firstResultsDeadline = searchStartedAt + firstResultsBudgetMs;
+    const health: Partial<Record<SourceKey, SourceHealth>> = {};
     const params = new URL(request.url).searchParams;
-    const query = params.get("q")?.trim().slice(0, 120) ?? "";
+    const queries = params.getAll("q");
+    if (queries.length > 1) throw new SearchRequestError("Provide one query value.");
+    const rawQuery = queries[0] ?? "";
+    if (rawQuery.length > 120) throw new SearchRequestError("Query must be 120 characters or fewer.");
+    if (params.has("cursor") && params.has("page")) throw new SearchRequestError("Use cursor or page, not both.");
+    const query = rawQuery.trim();
     const by = searchMode(params.get("by"));
     const region = rightsRegion(params.get("region"));
     const cursor = params.has("cursor")
       ? decodeCursor(params.get("cursor") ?? "")
       : initialCursor(params.get("page"));
     const urls = buildCatalogueUrls(query, by, cursor);
+    const fetchWithinBudget: SourceFetch = (url, userAgent, requestedTimeout = UPSTREAM_TIMEOUT_MS) => {
+      const remaining = Math.max(1, firstResultsDeadline - Date.now());
+      return fetchJson(url, userAgent, Math.min(requestedTimeout, remaining));
+    };
 
-    let gutenbergAvailable = cursor.gd;
     const gutenbergPromise = cursor.gd
       ? undefined
-      : fetchGutendex(urls.gutendex).then((page) => {
-        gutenbergAvailable = true;
-        return page;
-      });
+      : reliableSource(
+        "gutenberg",
+        sourceCacheKey("gutenberg", query, by, region, cursor.g),
+        () => fetchGutendex(urls.gutendex, fetchWithinBudget),
+        health,
+      );
     const libraryPromise = cursor.od
       ? undefined
-      : fetchOpenLibraryWithRetry(urls.openLibrary, async () => {
-        if (gutenbergAvailable || !gutenbergPromise) return true;
-        return Promise.race([
-          gutenbergPromise.then(() => true, () => false),
-          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 100)),
-        ]);
-      });
+      : reliableSource(
+        "openLibrary",
+        sourceCacheKey("openLibrary", query, by, region, cursor.o),
+        () => fetchOpenLibrary(urls.openLibrary, fetchWithinBudget),
+        health,
+      );
     const wikisourcePromise = cursor.wd
       ? undefined
-      : wikisourceAdapter.search({ query, by, offset: cursor.w, region }, fetchJson);
+      : reliableSource(
+        "wikisource",
+        sourceCacheKey("wikisource", query, by, region, cursor.w),
+        () => wikisourceAdapter.search({ query, by, offset: cursor.w, region }, fetchWithinBudget),
+        health,
+      );
     const doabPromise = cursor.dd
       ? undefined
-      : doabAdapter.search({ query, by, offset: cursor.d, region }, fetchJson);
+      : reliableSource(
+        "doab",
+        sourceCacheKey("doab", query, by, region, cursor.d),
+        () => doabAdapter.search({ query, by, offset: cursor.d, region }, fetchWithinBudget),
+        health,
+      );
     const libraryOfCongressPromise = cursor.ld
       ? undefined
-      : libraryOfCongressAdapter.search({ query, by, offset: cursor.l, region }, fetchJson);
+      : reliableSource(
+        "libraryOfCongress",
+        sourceCacheKey("libraryOfCongress", query, by, region, cursor.l),
+        () => libraryOfCongressAdapter.search({ query, by, offset: cursor.l, region }, fetchWithinBudget),
+        health,
+      );
     const pending = [gutenbergPromise, libraryPromise, wikisourcePromise, doabPromise, libraryOfCongressPromise]
       .filter(Boolean) as Array<Promise<GutendexPage | OpenLibraryPage | SourcePage>>;
     const settled = await Promise.allSettled(pending);
@@ -763,17 +946,24 @@ export async function GET(request: Request) {
       ? settled[settledIndex] as PromiseSettledResult<SourcePage>
       : undefined;
 
-    for (const [source, result] of [
-      ["gutenberg", gutenbergResult],
-      ["open-library", libraryResult],
-      ["wikisource", wikisourceResult],
-      ["doab", doabResult],
-      ["library-of-congress", libraryOfCongressResult],
-    ] as const) {
-      if (result?.status !== "rejected") continue;
-      const reason = result.reason;
-      const failure = reason instanceof UpstreamError ? reason.kind : reason instanceof Error ? reason.message : "unknown";
-      console.warn(`[search] ${source} upstream failure: ${failure}`);
+    const sources: Record<SourceKey, SourceStatus> = {
+      gutenberg: sourceStatus(cursor.gd, gutenbergResult, health.gutenberg),
+      openLibrary: sourceStatus(cursor.od, libraryResult, health.openLibrary),
+      wikisource: sourceStatus(cursor.wd, wikisourceResult, health.wikisource),
+      doab: sourceStatus(cursor.dd, doabResult, health.doab),
+      libraryOfCongress: sourceStatus(cursor.ld, libraryOfCongressResult, health.libraryOfCongress),
+    };
+    const sourceHealth: Record<SourceKey, SourceHealth> = {
+      gutenberg: sourceHealthFor(cursor.gd, sources.gutenberg, health.gutenberg),
+      openLibrary: sourceHealthFor(cursor.od, sources.openLibrary, health.openLibrary),
+      wikisource: sourceHealthFor(cursor.wd, sources.wikisource, health.wikisource),
+      doab: sourceHealthFor(cursor.dd, sources.doab, health.doab),
+      libraryOfCongress: sourceHealthFor(cursor.ld, sources.libraryOfCongress, health.libraryOfCongress),
+    };
+
+    const runningNodeTest = typeof process !== "undefined" && Boolean(process.env.NODE_TEST_CONTEXT);
+    if (!runningNodeTest) for (const [source, diagnostic] of Object.entries(sourceHealth)) {
+      console.info("[search-source]", JSON.stringify({ source, ...diagnostic }));
     }
 
     const attempted = [
@@ -784,15 +974,17 @@ export async function GET(request: Request) {
       libraryOfCongressResult,
     ].filter(Boolean);
     if (attempted.length && attempted.every((result) => result?.status === "rejected")) {
-      const sources = {
-        gutenberg: sourceStatus(cursor.gd, gutenbergResult),
-        openLibrary: sourceStatus(cursor.od, libraryResult),
-        wikisource: sourceStatus(cursor.wd, wikisourceResult),
-        doab: sourceStatus(cursor.dd, doabResult),
-        libraryOfCongress: sourceStatus(cursor.ld, libraryOfCongressResult),
-      };
       return Response.json(
-        { error: "Catalogues are temporarily unavailable.", sources },
+        {
+          error: "Catalogues are temporarily unavailable.",
+          nextCursor: encodeCursor(cursor),
+          sources,
+          sourceHealth,
+          searchTiming: {
+            firstResultsBudgetMs,
+            totalMs: quantizedDuration(searchStartedAt, Date.now()),
+          },
+        },
         { status: 502, headers: errorCacheHeaders },
       );
     }
@@ -830,16 +1022,10 @@ export async function GET(request: Request) {
       wikisourceResult,
       doabResult,
       libraryOfCongressResult,
+      sources,
     );
     const nextCursor = next.gd && next.od && next.wd && next.dd && next.ld ? null : encodeCursor(next);
 
-    const sources = {
-      gutenberg: sourceStatus(cursor.gd, gutenbergResult),
-      openLibrary: sourceStatus(cursor.od, libraryResult),
-      wikisource: sourceStatus(cursor.wd, wikisourceResult),
-      doab: sourceStatus(cursor.dd, doabResult),
-      libraryOfCongress: sourceStatus(cursor.ld, libraryOfCongressResult),
-    };
     const partial = Object.values(sources).some((status) => status !== "ok" && status !== "exhausted");
 
     return Response.json({
@@ -863,6 +1049,11 @@ export async function GET(request: Request) {
       },
       partial,
       sources,
+      sourceHealth,
+      searchTiming: {
+        firstResultsBudgetMs,
+        totalMs: quantizedDuration(searchStartedAt, Date.now()),
+      },
       ranking: {
         method: "rrf-v1",
         k: RRF_K,
@@ -878,3 +1069,14 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export async function GET(request: Request) {
+  return withPublicApiHeaders(await handleSearchRequest(request));
+}
+
+export const OPTIONS = publicApiOptions;
+export const HEAD = publicApiMethodNotAllowed;
+export const POST = publicApiMethodNotAllowed;
+export const PUT = publicApiMethodNotAllowed;
+export const PATCH = publicApiMethodNotAllowed;
+export const DELETE = publicApiMethodNotAllowed;

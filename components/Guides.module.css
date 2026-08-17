@@ -1,0 +1,253 @@
+.page {
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.hub,
+.article {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+}
+
+.hero {
+  padding: 68px 0 42px;
+  border-bottom: 1px solid var(--line);
+}
+
+.kicker {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.hero h1,
+.articleHeader h1 {
+  max-width: 900px;
+  margin: 0;
+  font-family: var(--font-display), serif;
+  font-size: clamp(45px, 7vw, 78px);
+  font-weight: 600;
+  line-height: .92;
+  letter-spacing: -.045em;
+}
+
+.hero > p:last-child,
+.articleHeader > p {
+  max-width: 660px;
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.filters {
+  padding: 24px 0 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filters a {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.grid {
+  margin-bottom: 76px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+}
+
+.card {
+  min-width: 0;
+  min-height: 235px;
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
+
+.cardMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.card h2 {
+  margin: 30px 0 10px;
+  font-family: var(--font-display), serif;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -.025em;
+}
+
+.card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.card > span {
+  margin-top: auto;
+  padding-top: 18px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.article {
+  max-width: 850px;
+  padding-bottom: 90px;
+}
+
+.crumbs {
+  padding: 24px 0;
+  display: flex;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.articleHeader {
+  padding: 32px 0 42px;
+  border-bottom: 1px solid var(--line);
+}
+
+.articleMeta {
+  margin-top: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.body {
+  padding-top: 42px;
+}
+
+.section {
+  margin: 0 0 44px;
+}
+
+.section h2 {
+  margin: 0 0 15px;
+  font-family: var(--font-display), serif;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -.025em;
+}
+
+.section p,
+.section li,
+.references li {
+  color: #38483f;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.section p {
+  margin: 0 0 15px;
+}
+
+.section ol,
+.section ul {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.section li + li {
+  margin-top: 9px;
+}
+
+.note {
+  padding: 14px 16px;
+  border-left: 3px solid #a47b36;
+  background: rgba(164, 123, 54, .07);
+}
+
+.references {
+  margin-top: 54px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+
+.references h2,
+.related h2 {
+  margin: 0 0 15px;
+  font-family: var(--font-display), serif;
+  font-size: 27px;
+}
+
+.references ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.references a,
+.related a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.related {
+  margin-top: 38px;
+}
+
+.relatedLinks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.relatedLinks a {
+  padding: 13px;
+  border: 1px solid var(--line);
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.action {
+  margin-top: 36px;
+  padding: 12px 16px;
+  display: inline-flex;
+  gap: 12px;
+  border-radius: 5px;
+  background: var(--ink);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 850px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .hub,
+  .article { width: min(100% - 36px, 850px); }
+  .hero { padding-top: 48px; }
+  .grid { grid-template-columns: 1fr; }
+  .card { min-height: 0; }
+  .relatedLinks { grid-template-columns: 1fr; }
+  .section p,
+  .section li,
+  .references li { font-size: 14px; }
+}

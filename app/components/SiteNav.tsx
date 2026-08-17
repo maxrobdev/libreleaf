@@ -5,17 +5,22 @@ import { useEffect, useId, useState } from "react";
 import styles from "./SiteNav.module.css";
 
 type SiteNavProps = {
-  active?: "home" | "search" | "lists" | "about" | "resources" | "saved";
+  active?: "home" | "search" | "lists" | "brief" | "send" | "guides" | "developers" | "about" | "resources" | "saved";
   savedCount?: number;
   onSaved?: () => void;
 };
 
-const links = [
-  { label: "Home", href: "/", key: "home" },
-  { label: "Search", href: "/search", key: "search" },
+const primaryLinks = [
+  { label: "Search", href: "/", key: "search" },
   { label: "Lists", href: "/lists", key: "lists" },
-  { label: "About", href: "/about", key: "about" },
-  { label: "Other tools", href: "/resources", key: "resources" },
+  { label: "Guides", href: "/guides", key: "guides" },
+] as const;
+
+const toolLinks = [
+  { label: "Briefleaf", detail: "RSS to EPUB", href: "/brief", key: "brief" },
+  { label: "LeafSend", detail: "Device handoff", href: "/send", key: "send" },
+  { label: "API + MCP", detail: "Build with LibreLeaf", href: "/developers", key: "developers" },
+  { label: "Book tools", detail: "Readers and catalogues", href: "/resources", key: "resources" },
 ] as const;
 
 export function SiteNav({ active, savedCount, onSaved }: SiteNavProps) {
@@ -33,7 +38,8 @@ export function SiteNav({ active, savedCount, onSaved }: SiteNavProps) {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [open]);
 
-  const savedLabel = typeof savedCount === "number" ? `Saved (${savedCount})` : "Saved";
+  const savedLabel = typeof savedCount === "number" && savedCount > 0 ? `Saved ${savedCount}` : "Saved";
+  const linkIsActive = (key: string) => key === "search" ? active === "home" || active === "search" : active === key;
 
   return (
     <header className={styles.header}>
@@ -58,17 +64,49 @@ export function SiteNav({ active, savedCount, onSaved }: SiteNavProps) {
         id={menuId}
         aria-label="Main navigation"
       >
-        {links.map((link) => (
+        {primaryLinks.map((link) => (
           <a
-            className={active === link.key ? styles.active : undefined}
+            className={linkIsActive(link.key) ? styles.active : undefined}
             href={link.href}
-            aria-current={active === link.key ? "page" : undefined}
+            aria-current={linkIsActive(link.key) ? "page" : undefined}
             key={link.key}
             onClick={() => setOpen(false)}
           >
             {link.label}
           </a>
         ))}
+
+        <details className={styles.more}>
+          <summary className={toolLinks.some((link) => link.key === active) ? styles.active : undefined}>
+            Tools <span aria-hidden="true">↓</span>
+          </summary>
+          <div className={styles.moreMenu}>
+            {toolLinks.map((link) => (
+              <a
+                className={active === link.key ? styles.active : undefined}
+                href={link.href}
+                aria-current={active === link.key ? "page" : undefined}
+                key={link.key}
+                onClick={() => setOpen(false)}
+              >
+                <strong>{link.label}</strong>
+                {"detail" in link ? <small>{link.detail}</small> : null}
+              </a>
+            ))}
+            <a className={styles.moreGithub} href="https://github.com/maxrobdev/libreleaf" target="_blank" rel="noreferrer">
+              <strong>GitHub ↗</strong><small>Source and issues</small>
+            </a>
+          </div>
+        </details>
+
+        <a
+          className={active === "about" ? styles.active : undefined}
+          href="/about"
+          aria-current={active === "about" ? "page" : undefined}
+          onClick={() => setOpen(false)}
+        >
+          About
+        </a>
 
         {onSaved ? (
           <button
@@ -85,7 +123,7 @@ export function SiteNav({ active, savedCount, onSaved }: SiteNavProps) {
         ) : (
           <a
             className={`${styles.saved} ${active === "saved" ? styles.active : ""}`}
-            href="/search?view=saved"
+            href="/?view=saved"
             aria-current={active === "saved" ? "page" : undefined}
             onClick={() => setOpen(false)}
           >
@@ -93,15 +131,6 @@ export function SiteNav({ active, savedCount, onSaved }: SiteNavProps) {
           </a>
         )}
 
-        <a
-          className={styles.github}
-          href="https://github.com/maxrobdev/libreleaf"
-          target="_blank"
-          rel="noreferrer"
-          onClick={() => setOpen(false)}
-        >
-          GitHub <span aria-hidden="true">↗</span>
-        </a>
       </nav>
     </header>
   );

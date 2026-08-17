@@ -106,7 +106,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         publisher: { "@id": organisationId },
         potentialAction: {
           "@type": "SearchAction",
-          target: new URL("/search?q={search_term_string}", siteUrl).href,
+          target: new URL("/?q={search_term_string}", siteUrl).href,
           "query-input": "required name=search_term_string",
         },
       },

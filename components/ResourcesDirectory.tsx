@@ -115,11 +115,7 @@ export function ResourcesDirectory() {
   return (
     <section className={styles.directory} aria-labelledby="directory-title">
       <div className={styles.heading}>
-        <div>
-          <p className={styles.eyebrow}>CURATED DIRECTORY</p>
-          <h2 id="directory-title">Tools that do a clear job</h2>
-        </div>
-        <p>Official project links only. No mirrors, wrappers or download brokers.</p>
+        <h2 id="directory-title">Resources</h2>
       </div>
 
       <div className={styles.controls}>
@@ -163,12 +159,6 @@ export function ResourcesDirectory() {
               <h3>{resource.name}</h3>
               <p className={styles.label}>{resource.label}</p>
               <p className={styles.description}>{resource.description}</p>
-              <dl>
-                <div>
-                  <dt>Best for</dt>
-                  <dd>{resource.bestFor}</dd>
-                </div>
-              </dl>
               <div className={styles.links}>
                 {resource.links.map((link, linkIndex) => (
                   <a

@@ -98,10 +98,10 @@ app/
 ├── about/                # project position and support page
 ├── lists/                # trending, download, and lending lists
 ├── resources/            # official tools and library directory
-├── search/               # dedicated search results route
+├── search/               # compatibility route for older shared links
 ├── globals.css           # visual design and responsive layout
 ├── layout.tsx            # fonts and search/social metadata
-└── page.tsx              # home discovery and search entry
+└── page.tsx              # unified home/search interface
 components/               # shared cards, search results, and directory pages
 lib/sources/              # typed source adapters and rights model
 mcp/                      # read-only Streamable HTTP MCP server

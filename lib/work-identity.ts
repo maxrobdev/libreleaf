@@ -111,7 +111,7 @@ export function workIdentityMatches(book: WorkLike, expected: WorkIdentity) {
 }
 
 export function canonicalWorkUrl(book: WorkLike, id = stableWorkId(book), origin = PUBLIC_SITE_ORIGIN) {
-  const url = new URL("/search/", origin);
+  const url = new URL("/", origin);
   url.searchParams.set("q", book.title);
   url.searchParams.set("by", "title");
   url.searchParams.set("work", id);

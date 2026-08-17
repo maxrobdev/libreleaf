@@ -6,6 +6,17 @@
 [functions]
   node_bundler = "esbuild"
 
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    Referrer-Policy = "no-referrer"
+    Strict-Transport-Security = "max-age=31536000"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+
 [[redirects]]
   from = "/mcp"
   to = "/.netlify/functions/mcp"
@@ -13,8 +24,44 @@
   force = true
 
 [[redirects]]
+  from = "/api/v1/works/*"
+  to = "/.netlify/functions/work?workId=:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/v1/search"
+  to = "/.netlify/functions/search"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/v1/lists"
+  to = "/.netlify/functions/lists"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/v1/editions"
+  to = "/.netlify/functions/editions"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/search"
   to = "/.netlify/functions/search"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/lists"
+  to = "/.netlify/functions/lists"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/editions"
+  to = "/.netlify/functions/editions"
   status = 200
   force = true
 

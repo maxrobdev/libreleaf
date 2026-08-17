@@ -124,7 +124,7 @@ test("search and fetch expose stable citation-ready work records", async () => {
   const result = searchPayload.result.structuredContent.results[0];
   assert.match(result.id, /^llw1\.[A-Za-z0-9_-]+$/);
   assert.equal(result.title, "Pride and Prejudice");
-  assert.match(result.url, /^https:\/\/libreleaf-books\.netlify\.app\/search\/\?/);
+  assert.match(result.url, /^https:\/\/libreleaf-books\.netlify\.app\/\?/);
   assert.deepEqual(JSON.parse(searchPayload.result.content[0].text), searchPayload.result.structuredContent);
 
   const fetchResponse = await mcpRequest({

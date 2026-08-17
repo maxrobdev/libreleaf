@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import styles from "./SearchResultsPage.module.css";
 
 export type FormatLink = {
@@ -78,15 +78,25 @@ export type SearchPayload = {
     libraryOfCongress?: number | null;
   };
   sources?: {
-    gutenberg: "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
-    openLibrary: "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
-    wikisource?: "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
-    doab?: "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
-    libraryOfCongress?: "ok" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
+    gutenberg: SourceStatus;
+    openLibrary: SourceStatus;
+    wikisource?: SourceStatus;
+    doab?: SourceStatus;
+    libraryOfCongress?: SourceStatus;
   };
+  sourceHealth?: Record<string, {
+    status: SourceStatus;
+    durationMs: number;
+    attempted: boolean;
+    cache: "none" | "stale";
+    circuit: "closed" | "open";
+  }>;
+  searchTiming?: { firstResultsBudgetMs: number; totalMs: number };
   rightsContext?: { region: "GB" | "US" | "GLOBAL"; label: string; note: string };
   ranking?: { method: "rrf-v1"; k: number; note: string };
 };
+
+type SourceStatus = "ok" | "stale" | "deferred" | "unavailable" | "timeout" | "rate-limited" | "exhausted";
 
 type EditionAccessLink = {
   kind: "catalogue" | "availability";
@@ -188,7 +198,8 @@ function routesForBook(book: Book): DisplayRoute[] {
     for (const offer of record.offers ?? []) add(offer, record.source, book.access);
   }
   for (const format of book.formats) {
-    add({ label: `Download ${format.label}`, url: format.url, source: catalogueSourceFor(book.source), access: "download" }, book.source, "download");
+    const access = format.label.toLocaleLowerCase().includes("read online") ? "read" : "download";
+    add({ label: access === "download" ? `Download ${format.label}` : format.label, url: format.url, source: catalogueSourceFor(book.source), access }, book.source, access);
   }
 
   if (!routes.length) {
@@ -203,7 +214,7 @@ function routesForBook(book: Book): DisplayRoute[] {
   return routes;
 }
 
-function representativeRoutes(routes: DisplayRoute[], limit = 6) {
+function representativeRoutes(routes: DisplayRoute[], limit = 3) {
   const firstBySource: DisplayRoute[] = [];
   const remaining: DisplayRoute[] = [];
   const seenSources = new Set<string>();
@@ -250,6 +261,11 @@ type BookCardProps = {
 export function BookCard({ book, saved, onToggleSaved, focused = false }: BookCardProps) {
   const routes = routesForBook(book);
   const primary = routes[0];
+  const downloadRoute = routes.find((route) => route.access === "download");
+  const readingRoute = routes.find((route) => route.access !== "download");
+  const cardRoutes = [downloadRoute, readingRoute ?? (!downloadRoute ? primary : undefined)]
+    .filter((route, index, all): route is DisplayRoute => Boolean(route) && all.indexOf(route) === index)
+    .slice(0, 2);
   const sourceRecords = sourceRecordsForBook(book);
   const why = [...(book.ranking?.reasons ?? []), ...(book.why ?? [])]
     .filter((reason, index, all) => all.indexOf(reason) === index)
@@ -259,11 +275,37 @@ export function BookCard({ book, saved, onToggleSaved, focused = false }: BookCa
   const [showAllRoutes, setShowAllRoutes] = useState(false);
   const [editionsState, setEditionsState] = useState<EditionsState>({ status: "idle" });
   const editionsHeadingId = useId();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const panelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const visibleRoutes = showAllRoutes ? routes : representativeRoutes(routes);
 
   useEffect(() => {
     if (focused) setPanelOpen(true);
   }, [focused]);
+
+  useEffect(() => {
+    if (!panelOpen) return;
+    closeButtonRef.current?.focus({ preventScroll: true });
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setPanelOpen(false);
+      setShowAllRoutes(false);
+      requestAnimationFrame(() => panelTriggerRef.current?.focus());
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [panelOpen]);
+
+  function openPanel(trigger: HTMLButtonElement) {
+    panelTriggerRef.current = trigger;
+    setPanelOpen(true);
+  }
+
+  function closePanel() {
+    setPanelOpen(false);
+    setShowAllRoutes(false);
+    requestAnimationFrame(() => panelTriggerRef.current?.focus());
+  }
 
   async function loadEditions() {
     if (!book.workKey || editionsState.status === "loading") return;
@@ -292,7 +334,7 @@ export function BookCard({ book, saved, onToggleSaved, focused = false }: BookCa
   return (
     <article className={`book-card ${focused ? styles.focusedWork : ""}`}>
       <div className={`book-cover ${panelOpen ? "panel-open" : ""}`}>
-        <button className="cover-trigger" onClick={() => setPanelOpen(true)} aria-expanded={panelOpen} aria-label={`Show ways to get ${book.title}`}>
+        <button className="cover-trigger" onClick={(event) => openPanel(event.currentTarget)} aria-expanded={panelOpen} aria-label={`Show ways to get ${book.title}`}>
           {book.cover ? <img src={book.cover} alt={`Cover of ${book.title}`} loading="lazy" /> : coverFallback(book.title)}
           <span className={`access-badge ${book.access}`}>
             {book.source === "Project Gutenberg" && book.access === "download" ? "Gutenberg file" : book.access === "download" ? "Download" : book.access === "borrow" ? "Borrow" : book.access === "listen" ? "Listen" : book.access === "read" ? "Read" : "Preview"}
@@ -301,11 +343,9 @@ export function BookCard({ book, saved, onToggleSaved, focused = false }: BookCa
         </button>
         <button className={`save-button ${saved ? "saved" : ""}`} onClick={onToggleSaved} aria-label={`${saved ? "Remove" : "Save"} ${book.title}`} title={saved ? "Remove from saved books" : "Save book"}>{saved ? "♥" : "♡"}</button>
         {panelOpen ? (
-          <div className="cover-panel" aria-label={`Available options for ${book.title}`}>
-            <button className="panel-close" onClick={() => { setPanelOpen(false); setShowAllRoutes(false); }} aria-label="Close book options">Close ×</button>
-            <p className="eyebrow">ACCESS ROUTES</p>
-            <h3>{routes.length > 1 ? `${routes.length} routes found` : "Available route"}</h3>
-            {why ? <div className={styles.why}><strong>Why this result</strong><span>{why}</span>{book.clusterConfidence ? <small>{confidenceLabel(book.clusterConfidence)}</small> : null}</div> : null}
+          <div className="cover-panel" role="dialog" aria-modal="false" aria-label={`Available options for ${book.title}`}>
+            <button ref={closeButtonRef} className="panel-close" onClick={closePanel} aria-label="Close book options">×</button>
+            <h3>Get this book</h3>
             <div className="panel-links">
               {visibleRoutes.map((route) => (
                 <a className={styles.route} key={`${book.workKey ?? book.id}-${route.url}`} href={route.url} target="_blank" rel="noreferrer" download={route.access === "download"}>
@@ -314,19 +354,22 @@ export function BookCard({ book, saved, onToggleSaved, focused = false }: BookCa
                 </a>
               ))}
             </div>
-            {routes.length > 6 ? (
+            {routes.length > 3 ? (
               <button className={styles.routeToggle} type="button" aria-expanded={showAllRoutes} onClick={() => setShowAllRoutes((current) => !current)}>
                 {showAllRoutes ? "Show representative routes" : `Show all ${routes.length} routes`}
               </button>
             ) : null}
-            <div className={styles.provenance}>
-              <strong>Source records</strong>
-              {sourceRecords.map((record, index) => {
-                const label = `${record.source} · ${record.recordId}`;
-                return <a href={record.detailsUrl} target="_blank" rel="noreferrer" key={`${record.source}-${record.recordId || index}`}>{label} ↗</a>;
-              })}
-              {book.canonicalUrl ? <a href={book.canonicalUrl}>Permanent work link ↗</a> : null}
-            </div>
+            <details className={styles.resultDetails}>
+              <summary>Source and ranking</summary>
+              {why ? <div className={styles.why}><strong>Why this result</strong><span>{why}</span>{book.clusterConfidence ? <small>{confidenceLabel(book.clusterConfidence)}</small> : null}</div> : null}
+              <div className={styles.provenance}>
+                {sourceRecords.map((record, index) => {
+                  const label = `${record.source} · ${record.recordId}`;
+                  return <a href={record.detailsUrl} target="_blank" rel="noreferrer" key={`${record.source}-${record.recordId || index}`}>{label} ↗</a>;
+                })}
+                {book.canonicalUrl ? <a href={book.canonicalUrl}>Permanent work link ↗</a> : null}
+              </div>
+            </details>
             {book.workKey ? (
               <section className={styles.editions} aria-labelledby={editionsHeadingId} aria-busy={editionsState.status === "loading"}>
                 <div className={styles.editionsHeading}>
@@ -388,19 +431,19 @@ export function BookCard({ book, saved, onToggleSaved, focused = false }: BookCa
       </div>
       <div className="book-info">
         <div className="source-line"><span>{book.source}</span>{book.year ? <span>{book.year}</span> : null}</div>
-        <h2>{book.title}</h2>
+        <h2><button className="book-title-trigger" onClick={(event) => openPanel(event.currentTarget)} aria-expanded={panelOpen}>{book.title}</button></h2>
         <p className="author">{book.authors.length ? book.authors.join(", ") : "Unknown author"}</p>
         <div className="card-actions">
-          {primary ? (
-            <a className={`primary-button ${primary.access === "download" ? "" : "read"}`} href={primary.url} download={primary.access === "download"} target="_blank" rel="noreferrer">
-              {primary.label}<span aria-hidden="true">{primary.access === "download" ? "↓" : "↗"}</span>
+          {cardRoutes.length ? cardRoutes.map((route) => (
+            <a className={`primary-button ${route.access === "download" ? "" : "read"}`} href={route.url} download={route.access === "download"} target="_blank" rel="noreferrer" key={`${route.access}-${route.url}`}>
+              {route.access === "download" ? "Download" : route.access === "borrow" ? "Borrow" : route.access === "listen" ? "Listen" : route.access === "preview" ? "Preview" : "Read"}<span aria-hidden="true">{route.access === "download" ? "↓" : "↗"}</span>
             </a>
-          ) : (
+          )) : (
             <a className="primary-button read" href={book.detailsUrl} target="_blank" rel="noreferrer">
               {book.access === "borrow" ? "Borrow book" : "View book"}<span aria-hidden="true">↗</span>
             </a>
           )}
-          {(routes.length > 1 || sourceRecords.length > 1 || why || book.workKey) ? <button className="format-button" onClick={() => setPanelOpen(true)}>Details</button> : null}
+          {(routes.length > 1 || sourceRecords.length > 1 || why || book.workKey) ? <button className="format-button" onClick={(event) => openPanel(event.currentTarget)}>More</button> : null}
         </div>
       </div>
     </article>

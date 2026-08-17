@@ -22,32 +22,46 @@ test("server-renders the LibreLeaf home page", async () => {
   const html = await response.text();
   assert.match(html, /<html[^>]*lang="en-GB"/i);
   assert.match(html, /LibreLeaf/i);
-  assert.match(html, /Find an open book/i);
-  assert.match(html, /OPEN CATALOGUE RESOLVER/i);
-  assert.match(html, /Project Gutenberg, Open Library, Wikisource, DOAB and the Library of Congress/i);
+  assert.match(html, /SearchResultsPage/i);
   assert.match(html, /application\/ld\+json/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 
-test("keeps home search empty and routes results to a dedicated page", async () => {
+test("uses one search-first interface for home and results", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const card = await readFile(new URL("../components/BookCard.tsx", import.meta.url), "utf8");
   const results = await readFile(new URL("../components/SearchResultsPage.tsx", import.meta.url), "utf8");
 
-  assert.match(page, /action="\/search"/);
-  assert.match(page, /name="q"/);
-  assert.doesNotMatch(page, /name="q"[^>]*value=/);
-  assert.match(card, /\{primary\.label\}/);
+  assert.match(page, /<SearchResultsPage \/>/);
+  assert.match(results, /Find an open book/);
+  assert.match(results, /function homePayload/);
+  assert.match(results, /FEATURED_BOOKS/);
+  assert.match(results, /window\.history\.pushState\(\{\}, "", suffix \? `\/\?\$\{suffix\}` : "\/"\)/);
+  assert.match(results, /SEARCH_FIELD_OPTIONS/);
+  assert.match(results, /Search options:/);
+  assert.match(results, /window\.addEventListener\("pointerdown", closeSearchOptions\)/);
+  assert.match(card, /const cardRoutes/);
+  assert.match(card, /route\.access === "download" \? "Download"/);
   assert.match(card, /Borrow this book/);
   assert.match(card, /View preview/);
   assert.match(card, /Why this result/);
-  assert.match(card, /Source records/);
+  assert.match(card, /Source and ranking/);
+  assert.match(card, /book-title-trigger/);
+  assert.match(card, /closeOnEscape/);
   assert.match(card, /Library of Congress/);
   assert.match(card, /Load editions/);
   assert.match(card, /Permanent work link/);
   assert.match(card, /Show all \$\{routes\.length\} routes/);
   assert.match(card, /US law/);
   assert.match(results, /RESULTS_BATCH_SIZE = 24/);
+  assert.match(results, /function apiSearchMode/);
+  assert.match(results, /by: apiSearchMode\(location\.by\)/);
+  assert.match(results, /by=\$\{apiSearchMode\(location\.by\)\}/);
+  const searchCss = await readFile(new URL("../components/SearchResultsPage.module.css", import.meta.url), "utf8");
+  assert.match(searchCss, /\.submitSearch \{[^}]*width: 30px;[^}]*min-height: 30px/);
+  assert.match(searchCss, /\.searchOptionsPopover \{[^}]*position: absolute;[^}]*opacity: 0/);
+  assert.match(searchCss, /transition: opacity 140ms ease, transform 140ms ease/);
+  assert.match(searchCss, /@media \(max-width: 720px\)[\s\S]*\.form input \{[^}]*font-size: 16px/);
   assert.match(results, /cursor: data\.nextCursor/);
   assert.match(results, /workId/);
   assert.match(results, /focused=\{Boolean\(location\.workId/);

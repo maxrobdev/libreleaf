@@ -1,0 +1,233 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LibreLeaf Resolver API",
+    "version": "1.0.0",
+    "description": "Read-only access to canonical works, lawful access routes, source provenance and jurisdiction context.",
+    "license": { "name": "MIT", "identifier": "MIT" },
+    "contact": { "name": "LibreLeaf", "url": "https://github.com/maxrobdev/libreleaf" }
+  },
+  "servers": [{ "url": "https://libreleaf-books.netlify.app" }],
+  "paths": {
+    "/api/v1/search": {
+      "get": {
+        "operationId": "searchWorks",
+        "summary": "Search canonical works",
+        "description": "Searches independent catalogues concurrently. Pass nextCursor unchanged to continue until it is null.",
+        "parameters": [
+          { "$ref": "#/components/parameters/Query" },
+          { "$ref": "#/components/parameters/SearchMode" },
+          { "$ref": "#/components/parameters/Region" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
+        "responses": {
+          "200": {
+            "description": "A complete or useful partial page.",
+            "headers": { "X-LibreLeaf-API-Version": { "$ref": "#/components/headers/ApiVersion" } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SearchResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "502": { "$ref": "#/components/responses/SourceFailure" }
+        }
+      },
+      "options": { "$ref": "#/components/pathItems/Options" }
+    },
+    "/api/v1/works/{workId}": {
+      "get": {
+        "operationId": "resolveWork",
+        "summary": "Resolve one canonical work",
+        "parameters": [
+          { "name": "workId", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^llw1\\.", "maxLength": 1024 } },
+          { "$ref": "#/components/parameters/Region" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The refreshed canonical work and every retained access route.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WorkResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "502": { "$ref": "#/components/responses/SourceFailure" }
+        }
+      },
+      "options": { "$ref": "#/components/pathItems/Options" }
+    },
+    "/api/v1/editions": {
+      "get": {
+        "operationId": "getEditions",
+        "summary": "List editions for an Open Library work",
+        "parameters": [{ "name": "workKey", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^/works/OL[0-9]+W$" } }],
+        "responses": {
+          "200": { "description": "Up to 12 editions, with provenance and availability-check routes.", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/SourceFailure" },
+          "502": { "$ref": "#/components/responses/SourceFailure" },
+          "504": { "$ref": "#/components/responses/SourceFailure" }
+        }
+      },
+      "options": { "$ref": "#/components/pathItems/Options" }
+    },
+    "/api/v1/lists": {
+      "get": {
+        "operationId": "getLiveLists",
+        "summary": "Read live list feeds",
+        "responses": {
+          "200": { "description": "Independent live, cached or unavailable list states.", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } }
+        }
+      },
+      "options": { "$ref": "#/components/pathItems/Options" }
+    }
+  },
+  "components": {
+    "parameters": {
+      "Query": { "name": "q", "in": "query", "description": "Title, author, subject or general query. Empty returns discovery results.", "schema": { "type": "string", "maxLength": 120, "default": "" } },
+      "SearchMode": { "name": "by", "in": "query", "schema": { "type": "string", "enum": ["q", "title", "author", "subject"], "default": "q" } },
+      "Region": { "name": "region", "in": "query", "description": "Display context only; not a legal determination.", "schema": { "$ref": "#/components/schemas/Region" } },
+      "Cursor": { "name": "cursor", "in": "query", "description": "Opaque cursor returned by the previous page. Do not decode or alter it.", "schema": { "type": "string", "maxLength": 384 } }
+    },
+    "headers": {
+      "ApiVersion": { "description": "Public API contract version.", "schema": { "type": "string", "const": "1" } }
+    },
+    "pathItems": {
+      "Options": {
+        "operationId": "corsOptions",
+        "summary": "CORS preflight",
+        "responses": { "204": { "description": "GET and OPTIONS are allowed." } }
+      }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid input.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "NotFound": { "description": "No matching work or edition.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "SourceFailure": { "description": "Source timeout, rate limit or temporary unavailability.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    },
+    "schemas": {
+      "Region": { "type": "string", "enum": ["GB", "US", "GLOBAL"], "default": "GB" },
+      "Access": { "type": "string", "enum": ["download", "borrow", "preview", "read", "listen"] },
+      "SourceName": { "type": "string", "enum": ["Project Gutenberg", "Open Library", "Wikisource", "DOAB", "Library of Congress"] },
+      "SourceStatus": { "type": "string", "enum": ["ok", "exhausted", "stale", "deferred", "timeout", "rate-limited", "unavailable"] },
+      "Rights": {
+        "type": "object",
+        "required": ["status", "jurisdiction", "note"],
+        "properties": {
+          "status": { "type": "string", "enum": ["source-assessed-public-domain", "open-licence", "source-policy-free", "source-provided-access"] },
+          "jurisdiction": { "type": "string" },
+          "note": { "type": "string" },
+          "licenceUrl": { "type": "string", "format": "uri" },
+          "applicability": { "type": "string", "enum": ["verified", "source-jurisdiction-only", "check-local"] }
+        }
+      },
+      "Offer": {
+        "type": "object",
+        "required": ["source", "access", "label", "url"],
+        "properties": {
+          "source": { "$ref": "#/components/schemas/SourceName" },
+          "access": { "$ref": "#/components/schemas/Access" },
+          "label": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "format": { "type": "string" },
+          "language": { "type": "string" },
+          "rights": { "$ref": "#/components/schemas/Rights" }
+        }
+      },
+      "SourceRecord": {
+        "type": "object",
+        "required": ["source", "recordId", "detailsUrl", "offers"],
+        "properties": {
+          "source": { "$ref": "#/components/schemas/SourceName" },
+          "recordId": { "type": "string" },
+          "detailsUrl": { "type": "string", "format": "uri" },
+          "workKey": { "type": "string" },
+          "language": { "type": "string" },
+          "country": { "type": "string" },
+          "offers": { "type": "array", "items": { "$ref": "#/components/schemas/Offer" } }
+        }
+      },
+      "Ranking": {
+        "type": "object",
+        "required": ["method", "score", "sourceRanks", "reasons"],
+        "properties": {
+          "method": { "type": "string", "const": "rrf-v1" },
+          "score": { "type": "number" },
+          "sourceRanks": { "type": "array", "items": { "type": "object", "required": ["source", "rank"], "properties": { "source": { "$ref": "#/components/schemas/SourceName" }, "rank": { "type": "integer", "minimum": 1 } } } },
+          "reasons": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "Work": {
+        "type": "object",
+        "required": ["id", "title", "authors", "source", "access", "detailsUrl", "clusterConfidence", "why", "offers", "sourceRecords", "canonicalId", "canonicalUrl"],
+        "properties": {
+          "id": { "type": "string" },
+          "canonicalId": { "type": "string", "pattern": "^llw1\\." },
+          "canonicalUrl": { "type": "string", "format": "uri" },
+          "title": { "type": "string" },
+          "authors": { "type": "array", "items": { "type": "string" } },
+          "year": { "type": "integer" },
+          "cover": { "type": "string", "format": "uri" },
+          "source": { "type": "string" },
+          "access": { "$ref": "#/components/schemas/Access" },
+          "detailsUrl": { "type": "string", "format": "uri" },
+          "workKey": { "type": "string" },
+          "language": { "type": "string" },
+          "country": { "type": "string" },
+          "clusterConfidence": { "type": "string", "enum": ["exact", "probable"] },
+          "why": { "type": "array", "items": { "type": "string" } },
+          "offers": { "type": "array", "items": { "$ref": "#/components/schemas/Offer" } },
+          "sourceRecords": { "type": "array", "items": { "$ref": "#/components/schemas/SourceRecord" } },
+          "ranking": { "$ref": "#/components/schemas/Ranking" }
+        }
+      },
+      "SourceHealth": {
+        "type": "object",
+        "required": ["status", "durationMs", "attempted", "cache", "circuit"],
+        "properties": {
+          "status": { "$ref": "#/components/schemas/SourceStatus" },
+          "durationMs": { "type": "integer", "minimum": 0 },
+          "attempted": { "type": "boolean" },
+          "cache": { "type": "string", "enum": ["none", "stale"] },
+          "circuit": { "type": "string", "enum": ["closed", "open"] }
+        }
+      },
+      "SearchResponse": {
+        "type": "object",
+        "required": ["query", "books", "counts", "nextCursor", "upstreamTotals", "partial", "sources", "rightsContext"],
+        "properties": {
+          "query": { "type": "string" },
+          "books": { "type": "array", "items": { "$ref": "#/components/schemas/Work" } },
+          "counts": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+          "nextCursor": { "type": ["string", "null"] },
+          "upstreamTotals": { "type": "object", "additionalProperties": { "type": ["integer", "null"] } },
+          "partial": { "type": "boolean" },
+          "sources": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/SourceStatus" } },
+          "sourceHealth": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/SourceHealth" } },
+          "searchTiming": { "type": "object", "properties": { "firstResultsBudgetMs": { "type": "integer" }, "totalMs": { "type": "integer" } } },
+          "ranking": { "type": "object", "additionalProperties": true },
+          "rightsContext": { "$ref": "#/components/schemas/RightsContext" }
+        }
+      },
+      "RightsContext": {
+        "type": "object",
+        "required": ["region", "label", "note"],
+        "properties": { "region": { "$ref": "#/components/schemas/Region" }, "label": { "type": "string" }, "note": { "type": "string" } }
+      },
+      "WorkResponse": {
+        "type": "object",
+        "required": ["canonicalId", "work", "rightsContext", "partial", "sources", "resolution"],
+        "properties": {
+          "canonicalId": { "type": "string" },
+          "canonicalUrl": { "type": "string", "format": "uri" },
+          "work": { "$ref": "#/components/schemas/Work" },
+          "rightsContext": { "$ref": "#/components/schemas/RightsContext" },
+          "partial": { "type": "boolean" },
+          "sources": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/SourceStatus" } },
+          "resolution": { "type": "object", "required": ["pagesSearched", "exhausted"], "properties": { "pagesSearched": { "type": "integer" }, "exhausted": { "type": "boolean" } } }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": { "error": { "type": "string" }, "message": { "type": "string" }, "nextCursor": { "type": "string" }, "sources": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/SourceStatus" } } }
+      }
+    }
+  }
+}

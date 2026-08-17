@@ -63,7 +63,7 @@ test("creates a citation URL that selects the exact canonical work", () => {
   const url = new URL(canonicalWorkUrl(book, id));
 
   assert.equal(url.origin, "https://libreleaf-books.netlify.app");
-  assert.equal(url.pathname, "/search/");
+  assert.equal(url.pathname, "/");
   assert.equal(url.searchParams.get("work"), id);
   assert.equal(url.searchParams.get("q"), book.title);
 });

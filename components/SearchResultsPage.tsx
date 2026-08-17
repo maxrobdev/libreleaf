@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { SiteNav } from "../app/components/SiteNav";
+import { FEATURED_BOOKS } from "../lib/featured-books";
 import { BookCard, type Book, type CatalogueSource, type SearchPayload } from "./BookCard";
 import styles from "./SearchResultsPage.module.css";
 
@@ -18,11 +19,77 @@ type LocationState = {
   workId: string;
 };
 
-const responseCache = new Map<string, SearchPayload>();
+type CachedSearch = { payload: SearchPayload; storedAt: number };
+
+const responseCache = new Map<string, CachedSearch>();
 const validSearchFields = new Set<SearchBy>(["all", "title", "author", "subject"]);
 const validRegions = new Set<RightsRegion>(["GB", "US", "GLOBAL"]);
 const RESULTS_BATCH_SIZE = 24;
 const RRF_K = 60;
+const RESPONSE_CACHE_LIMIT = 32;
+const COMPLETE_CACHE_MS = 5 * 60 * 1_000;
+const PARTIAL_CACHE_MS = 15 * 1_000;
+const SEARCH_SUGGESTIONS = ["Jane Austen", "Frankenstein", "Sherlock Holmes", "Virginia Woolf"];
+const SUBJECT_SUGGESTIONS = ["Gothic fiction", "Detective fiction", "Romantic poetry", "Victorian literature", "Natural history", "Philosophical essays"];
+const SEARCH_FIELD_OPTIONS: Array<{ value: SearchBy; label: string }> = [
+  { value: "all", label: "Anywhere" },
+  { value: "title", label: "Title" },
+  { value: "author", label: "Author" },
+  { value: "subject", label: "Subject" },
+];
+const RIGHTS_OPTIONS: Array<{ value: RightsRegion; label: string }> = [
+  { value: "GB", label: "United Kingdom" },
+  { value: "US", label: "United States" },
+  { value: "GLOBAL", label: "Global — check locally" },
+];
+
+function homePayload(region: RightsRegion): SearchPayload {
+  const labels: Record<RightsRegion, string> = {
+    GB: "United Kingdom",
+    US: "United States",
+    GLOBAL: "Global / check locally",
+  };
+  return {
+    query: "",
+    books: FEATURED_BOOKS,
+    counts: countsFor(FEATURED_BOOKS),
+    nextCursor: null,
+    rightsContext: {
+      region,
+      label: labels[region],
+      note: region === "US"
+        ? "Project Gutenberg assesses these starter editions as public domain in the United States."
+        : "Project Gutenberg assesses public-domain status under US law. Check the status of a work where you are.",
+    },
+  };
+}
+
+function apiSearchMode(by: SearchBy) {
+  return by === "all" ? "q" : by;
+}
+
+function cachedResponse(key: string) {
+  const cached = responseCache.get(key);
+  if (!cached) return undefined;
+  const lifetime = cached.payload.partial ? PARTIAL_CACHE_MS : COMPLETE_CACHE_MS;
+  if (Date.now() - cached.storedAt > lifetime) {
+    responseCache.delete(key);
+    return undefined;
+  }
+  responseCache.delete(key);
+  responseCache.set(key, cached);
+  return cached.payload;
+}
+
+function rememberResponse(key: string, payload: SearchPayload) {
+  responseCache.delete(key);
+  responseCache.set(key, { payload, storedAt: Date.now() });
+  while (responseCache.size > RESPONSE_CACHE_LIMIT) {
+    const oldest = responseCache.keys().next().value as string | undefined;
+    if (!oldest) break;
+    responseCache.delete(oldest);
+  }
+}
 
 function normalise(value: string) {
   return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
@@ -147,21 +214,23 @@ function bookFormats(book: Book) {
 
 function sourceIssue(source: string, status: string | undefined) {
   if (!status || status === "ok" || status === "exhausted") return null;
-  if (status === "timeout") return `${source} timed out`;
-  if (status === "rate-limited") return `${source} rate-limited this request`;
-  return `${source} did not respond`;
+  if (status === "stale") return `${source} is showing a recent cached page`;
+  if (status === "deferred") return `${source} will retry shortly`;
+  if (status === "timeout") return `${source} did not finish this pass`;
+  if (status === "rate-limited") return `${source} asked us to pause`;
+  return `${source} was unavailable this pass`;
 }
 
 function readLocation(): LocationState {
   if (typeof window === "undefined") return { query: "", by: "all", savedOnly: false, region: "GB", workId: "" };
   const params = new URLSearchParams(window.location.search);
-  const rawBy = params.get("by") as SearchBy | null;
+  const rawBy = params.get("by");
   const rawRegion = params.get("region") as RightsRegion | null;
   const rawWorkId = params.get("work") ?? "";
 
   return {
     query: params.get("q")?.trim() ?? "",
-    by: rawBy && validSearchFields.has(rawBy) ? rawBy : "all",
+    by: rawBy === "q" ? "all" : rawBy && validSearchFields.has(rawBy as SearchBy) ? rawBy as SearchBy : "all",
     savedOnly: params.get("view") === "saved",
     region: rawRegion && validRegions.has(rawRegion) ? rawRegion : "GB",
     workId: /^llw1\.[A-Za-z0-9_-]+$/.test(rawWorkId) && rawWorkId.length <= 1_024 ? rawWorkId : "",
@@ -176,7 +245,7 @@ function writeLocation(query: string, by: SearchBy, region: RightsRegion, savedO
   if (savedOnly) params.set("view", "saved");
   if (workId) params.set("work", workId);
   const suffix = params.toString();
-  window.history.pushState({}, "", suffix ? `/search?${suffix}` : "/search");
+  window.history.pushState({}, "", suffix ? `/?${suffix}` : "/");
 }
 
 function loadSavedBooks() {
@@ -195,7 +264,7 @@ export default function SearchResultsPage() {
   const [draft, setDraft] = useState("");
   const [draftBy, setDraftBy] = useState<SearchBy>("all");
   const [draftRegion, setDraftRegion] = useState<RightsRegion>("GB");
-  const [data, setData] = useState<SearchPayload | null>(null);
+  const [data, setData] = useState<SearchPayload | null>(() => homePayload("GB"));
   const [filter, setFilter] = useState<AccessFilter>("all");
   const [source, setSource] = useState<"all" | CatalogueSource>("all");
   const [format, setFormat] = useState("all");
@@ -206,7 +275,28 @@ export default function SearchResultsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [loadMoreError, setLoadMoreError] = useState("");
+  const [showMobileSearchOptions, setShowMobileSearchOptions] = useState(false);
+  const searchFormRef = useRef<HTMLFormElement>(null);
   const loadMoreController = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!showMobileSearchOptions) return;
+    function closeSearchOptions(event: PointerEvent | KeyboardEvent) {
+      if (event instanceof KeyboardEvent && event.key === "Escape") {
+        setShowMobileSearchOptions(false);
+        return;
+      }
+      if (event instanceof PointerEvent && !searchFormRef.current?.contains(event.target as Node)) {
+        setShowMobileSearchOptions(false);
+      }
+    }
+    window.addEventListener("pointerdown", closeSearchOptions);
+    window.addEventListener("keydown", closeSearchOptions);
+    return () => {
+      window.removeEventListener("pointerdown", closeSearchOptions);
+      window.removeEventListener("keydown", closeSearchOptions);
+    };
+  }, [showMobileSearchOptions]);
 
   useEffect(() => {
     function syncFromLocation() {
@@ -228,14 +318,22 @@ export default function SearchResultsPage() {
 
   useEffect(() => {
     if (!ready) return;
+    if (!location.query && !location.savedOnly) {
+      setData(homePayload(location.region));
+      setLoading(false);
+      setError("");
+      return;
+    }
     const requestKey = `${location.region}:${location.by}:${location.query.toLocaleLowerCase()}`;
-    const cached = responseCache.get(requestKey);
+    const cached = cachedResponse(requestKey);
     if (cached) {
       setData(cached);
       setVisibleCount(RESULTS_BATCH_SIZE);
       setError("");
-      setLoading(false);
-      return;
+      if (!cached.partial) {
+        setLoading(false);
+        return;
+      }
     }
 
     const controller = new AbortController();
@@ -244,13 +342,13 @@ export default function SearchResultsPage() {
     setLoadMoreError("");
     setLoading(true);
     setError("");
-    fetch(`/api/search?q=${encodeURIComponent(location.query)}&by=${location.by}&region=${location.region}`, { signal: controller.signal })
+    fetch(`/api/search?q=${encodeURIComponent(location.query)}&by=${apiSearchMode(location.by)}&region=${location.region}`, { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("Search is temporarily unavailable.");
         return response.json();
       })
       .then((payload: SearchPayload) => {
-        responseCache.set(requestKey, payload);
+        rememberResponse(requestKey, payload);
         setData(payload);
         setVisibleCount(RESULTS_BATCH_SIZE);
       })
@@ -287,6 +385,7 @@ export default function SearchResultsPage() {
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setShowMobileSearchOptions(false);
     const query = draft.trim();
     writeLocation(query, draftBy, draftRegion);
     setLocation({ query, by: draftBy, savedOnly: false, region: draftRegion, workId: "" });
@@ -329,7 +428,7 @@ export default function SearchResultsPage() {
     setLoadingMore(true);
     setLoadMoreError("");
 
-    const params = new URLSearchParams({ q: location.query, by: location.by, region: location.region, cursor: data.nextCursor });
+    const params = new URLSearchParams({ q: location.query, by: apiSearchMode(location.by), region: location.region, cursor: data.nextCursor });
     fetch(`/api/search?${params.toString()}`, { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("More results are temporarily unavailable.");
@@ -339,7 +438,7 @@ export default function SearchResultsPage() {
         setData((current) => {
           if (!current) return payload;
           const next = mergePayload(current, payload);
-          responseCache.set(`${location.region}:${location.by}:${location.query.toLocaleLowerCase()}`, next);
+          rememberResponse(`${location.region}:${location.by}:${location.query.toLocaleLowerCase()}`, next);
           return next;
         });
         setVisibleCount((current) => current + RESULTS_BATCH_SIZE);
@@ -353,7 +452,7 @@ export default function SearchResultsPage() {
   }
 
   const hasFilters = filter !== "all" || source !== "all" || format !== "all" || sort !== "relevance";
-  const resultLabel = location.query ? `Results for “${location.query}”` : filter === "saved" ? "Saved books" : "Browse open books";
+  const resultLabel = location.query ? `Results for “${location.query}”` : filter === "saved" ? "Saved books" : "Start reading";
   const displayedBooks = visibleBooks.slice(0, visibleCount);
   const canLoadMore = displayedBooks.length < visibleBooks.length || Boolean(data?.nextCursor);
   const sourceIssues = data?.sources
@@ -370,32 +469,94 @@ export default function SearchResultsPage() {
     <main className={styles.page}>
       <SiteNav active={filter === "saved" ? "saved" : "search"} savedCount={saved.length} onSaved={() => selectFilter("saved")} />
 
-      <header className={styles.searchHeader}>
+      <header className={styles.searchHeader} id="top">
+        <p className={styles.kicker}>OPEN BOOK SEARCH</p>
         <div className={styles.headingRow}>
-          <h1>Search books</h1>
-          <p>One work view across source-labelled download, read, loan and preview routes.</p>
+          <h1>Find an open book.</h1>
         </div>
-        <form className={`search-box ${styles.form}`} onSubmit={search} role="search">
+        <form ref={searchFormRef} className={`search-box ${styles.form}`} onSubmit={search} role="search">
           <span aria-hidden="true">⌕</span>
-          <label className="sr-only" htmlFor="results-search-by">Search field</label>
-          <select id="results-search-by" name="by" value={draftBy} onChange={(event) => setDraftBy(event.target.value as SearchBy)}>
-            <option value="all">Anywhere</option>
-            <option value="title">Title</option>
-            <option value="author">Author</option>
-            <option value="subject">Subject</option>
-          </select>
-          <label className="sr-only" htmlFor="results-region">Rights context</label>
-          <select id="results-region" name="region" value={draftRegion} onChange={(event) => setDraftRegion(event.target.value as RightsRegion)} title="Rights context">
-            <option value="GB">UK context</option>
-            <option value="US">US context</option>
-            <option value="GLOBAL">Global / check locally</option>
-          </select>
           <label className="sr-only" htmlFor="results-book-search">Search by title, author, or subject</label>
-          <input id="results-book-search" name="q" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Title, author, or subject…" autoComplete="off" />
-          <button type="submit">Search</button>
+          <input id="results-book-search" name="q" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Book, author or subject…" autoComplete="off" />
+          <input type="hidden" name="by" value={draftBy} />
+          <input type="hidden" name="region" value={draftRegion} />
+          <div className={`${styles.searchOptionsPopover} ${showMobileSearchOptions ? styles.searchOptionsPopoverOpen : ""}`} aria-hidden={!showMobileSearchOptions}>
+            <span>Search in</span>
+            <div className={styles.optionRows}>
+              {SEARCH_FIELD_OPTIONS.map((option) => (
+                <button className={draftBy === option.value ? styles.optionSelected : undefined} type="button" aria-pressed={draftBy === option.value} tabIndex={showMobileSearchOptions ? 0 : -1} onClick={() => setDraftBy(option.value)} key={option.value}>{option.label}</button>
+              ))}
+            </div>
+            <span>Rights</span>
+            <div className={styles.optionRows}>
+              {RIGHTS_OPTIONS.map((option) => (
+                <button className={draftRegion === option.value ? styles.optionSelected : undefined} type="button" aria-pressed={draftRegion === option.value} tabIndex={showMobileSearchOptions ? 0 : -1} onClick={() => setDraftRegion(option.value)} key={option.value}>{option.label}</button>
+              ))}
+            </div>
+          </div>
+          <button className={styles.optionsToggle} type="button" aria-expanded={showMobileSearchOptions} aria-label={`Search options: ${SEARCH_FIELD_OPTIONS.find((option) => option.value === draftBy)?.label}, ${RIGHTS_OPTIONS.find((option) => option.value === draftRegion)?.label}`} onClick={() => setShowMobileSearchOptions((current) => !current)}>
+            <span>{SEARCH_FIELD_OPTIONS.find((option) => option.value === draftBy)?.label}</span><i aria-hidden="true">·</i><span>{draftRegion === "GB" ? "UK" : draftRegion === "US" ? "US" : "Global"}</span>
+          </button>
+          <button className={styles.submitSearch} type="submit" aria-label="Search" disabled={!draft.trim()}><span className={styles.searchLabel}>Search</span><span className={styles.searchGlyph} aria-hidden="true">↑</span></button>
         </form>
+        <p className={styles.heroCopy}>Find, read or download from lawful sources.</p>
+        <div className="suggestions">
+          <span>Try</span>
+          {SEARCH_SUGGESTIONS.map((item) => <a href={`/?q=${encodeURIComponent(item)}`} key={item}>{item}</a>)}
+        </div>
+        <div className="category-row" aria-label="Browse popular genres and subgenres">
+          {SUBJECT_SUGGESTIONS.map((item) => <a href={`/?q=${encodeURIComponent(item)}&by=subject`} key={item}>{item}</a>)}
+        </div>
       </header>
 
+      {!location.query && !location.savedOnly ? (
+        <>
+          <section className="home-catalogue" aria-labelledby="starter-shelf-heading">
+            <div className="home-catalogue-heading">
+              <div>
+                <p className="eyebrow">OPEN SHELF</p>
+                <h2 id="starter-shelf-heading">Start reading</h2>
+              </div>
+              <a href="/lists">All lists <span aria-hidden="true">→</span></a>
+            </div>
+            <div className="book-grid">
+              {FEATURED_BOOKS.map((book) => (
+                <BookCard
+                  book={book}
+                  key={bookKey(book)}
+                  saved={saved.includes(savedKey(book)) || saved.includes(book.id)}
+                  onToggleSaved={() => toggleSaved(book)}
+                />
+              ))}
+            </div>
+          </section>
+
+          <nav className="home-tools" aria-label="LibreLeaf tools">
+            <a href="/send"><strong>Send a file</strong><span>EPUB, PDF or MOBI</span><b aria-hidden="true">→</b></a>
+            <a href="/brief"><strong>News to EPUB</strong><span>Combine reviewed RSS feeds</span><b aria-hidden="true">→</b></a>
+            <a href="/guides"><strong>Guides</strong><span>Phones and e-readers</span><b aria-hidden="true">→</b></a>
+            <a href="/developers"><strong>API + MCP</strong><span>Build with LibreLeaf</span><b aria-hidden="true">→</b></a>
+          </nav>
+
+          <section className="browse-links" aria-labelledby="browse-heading">
+            <div>
+              <p className="eyebrow">BROWSE</p>
+              <h2 id="browse-heading">Browse</h2>
+            </div>
+            <nav aria-label="Book lists">
+              <a href="/lists">Curated topics <span aria-hidden="true">→</span></a>
+              <a href="/lists">Popular downloads <span aria-hidden="true">→</span></a>
+              <a href="/lists">New open editions <span aria-hidden="true">→</span></a>
+            </nav>
+          </section>
+
+          <footer>
+            <a className="brand" href="#top"><span>libre</span>leaf</a>
+            <p>Open-source book search.</p>
+            <p>Project Gutenberg, Open Library, Wikisource, DOAB and the Library of Congress.</p>
+          </footer>
+        </>
+      ) : (
       <section className={`results-section ${styles.results}`} aria-live="polite" aria-busy={loading || loadingMore}>
         <div className={`results-heading ${styles.meta}`}>
           <div>
@@ -405,7 +566,7 @@ export default function SearchResultsPage() {
           {data ? <p className="result-count">Showing {displayedBooks.length} · {visibleBooks.length}{visibleBooks.length !== data.books.length ? ` match filters · ${data.books.length}` : ""} loaded{data.nextCursor ? " · more available" : ""}</p> : null}
         </div>
         {loading && data ? <p className={styles.working} role="status">Updating results…</p> : null}
-        {sourceIssues.length ? <p className={styles.sourceNotice} role="status">Partial results: {sourceIssues.join("; ")}.</p> : null}
+        {sourceIssues.length ? <p className={styles.sourceNotice} role="status">Source note: {sourceIssues.join("; ")}. Incomplete sources retry when you load more.</p> : null}
         {data?.rightsContext ? <p className={styles.sourceNotice}>Rights context: {data.rightsContext.label}. {data.rightsContext.note}</p> : null}
 
         <div className="filter-row" aria-label="Filter search results">
@@ -431,6 +592,7 @@ export default function SearchResultsPage() {
         {!error && canLoadMore ? <button className={styles.loadMore} onClick={loadMore} disabled={loadingMore}>{loadingMore ? "Loading more…" : "Load more"} <span aria-hidden="true">↓</span></button> : null}
         {!loading && !error && data && !visibleBooks.length ? <div className={`status-card ${styles.emptyHint}`}><strong>No matching books.</strong><p>{filter === "saved" ? "Save books from any result, or change the filter." : "Try a broader title, author, or subject."}</p></div> : null}
       </section>
+      )}
     </main>
   );
 }

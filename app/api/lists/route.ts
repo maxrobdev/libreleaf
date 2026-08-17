@@ -1,3 +1,5 @@
+import { publicApiMethodNotAllowed, publicApiOptions, withPublicApiHeaders } from "../../../lib/public-api.ts";
+
 type SourceState = "live" | "stale" | "unavailable";
 
 type LiveListItem = {
@@ -329,7 +331,7 @@ async function buildPayload(previous: LiveListsPayload | null): Promise<LiveList
   };
 }
 
-export async function GET() {
+async function handleListsRequest() {
   const now = Date.now();
   if (memoryCache && memoryCache.expiresAt > now) {
     return Response.json(memoryCache.payload, { headers: successHeaders });
@@ -339,3 +341,14 @@ export async function GET() {
   memoryCache = { expiresAt: now + REFRESH_SECONDS * 1_000, payload };
   return Response.json(payload, { headers: successHeaders });
 }
+
+export async function GET() {
+  return withPublicApiHeaders(await handleListsRequest());
+}
+
+export const OPTIONS = publicApiOptions;
+export const HEAD = publicApiMethodNotAllowed;
+export const POST = publicApiMethodNotAllowed;
+export const PUT = publicApiMethodNotAllowed;
+export const PATCH = publicApiMethodNotAllowed;
+export const DELETE = publicApiMethodNotAllowed;

@@ -1,3 +1,5 @@
+import { publicApiMethodNotAllowed, publicApiOptions, withPublicApiHeaders } from "../../../lib/public-api.ts";
+
 const OPEN_LIBRARY_ORIGIN = "https://openlibrary.org";
 const EDITION_LIMIT = 12;
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -244,7 +246,7 @@ function errorResponse(status: number, error: string, message: string) {
   return Response.json({ error, message }, { status, headers: errorHeaders });
 }
 
-export async function GET(request: Request) {
+async function handleEditionsRequest(request: Request) {
   const url = new URL(request.url);
   const workKeys = url.searchParams.getAll("workKey");
   const workKey = workKeys[0] ?? "";
@@ -293,3 +295,14 @@ export async function GET(request: Request) {
     return errorResponse(502, "source_unavailable", "Open Library editions are temporarily unavailable.");
   }
 }
+
+export async function GET(request: Request) {
+  return withPublicApiHeaders(await handleEditionsRequest(request));
+}
+
+export const OPTIONS = publicApiOptions;
+export const HEAD = publicApiMethodNotAllowed;
+export const POST = publicApiMethodNotAllowed;
+export const PUT = publicApiMethodNotAllowed;
+export const PATCH = publicApiMethodNotAllowed;
+export const DELETE = publicApiMethodNotAllowed;

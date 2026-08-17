@@ -5,7 +5,7 @@ LibreLeaf is a work-level access resolver. It does not proxy or store book files
 ## Search flow
 
 1. The browser sends a title, author, subject or broad query to `/api/search`, with a `GB`, `US` or `GLOBAL` rights context.
-2. The Edge handler queries Gutendex, Open Library, Wikisource, DOAB and the Library of Congress concurrently. Every source has its own bounded timeout, status, total and cursor position.
+2. The Edge handler queries Gutendex, Open Library, Wikisource, DOAB and the Library of Congress concurrently. Every source has its own timeout, status, total and cursor position inside one 2.5-second first-results budget.
 3. Source adapters validate response records and allowlist outbound URLs before creating access offers.
 4. Exact normalized title-and-primary-author matches form one work cluster. Probable or fuzzy matches remain separate to avoid merging translations and adaptations incorrectly.
 5. Each normalized source record keeps its global position. Exact work clusters combine those positions with [Reciprocal Rank Fusion](https://research.google/pubs/reciprocal-rank-fusion-outperforms-condorcet-and-individual-rank-learning-methods/) (`1 / (60 + rank)`), plus a disclosed exact-title or exact-author signal. The response exposes the score, every contributing source rank and plain-English reasons.
@@ -34,4 +34,4 @@ An offer can be source-assessed public domain, openly licensed, source-policy fr
 
 ## State and caching
 
-Saved book IDs remain in browser `localStorage`; there is no account database. Search and list responses use CDN caching with stale-while-revalidate. Edition responses use a longer cache because work editions change less often. Source failures remain isolated and are never cached as successful results.
+Saved book IDs remain in browser `localStorage`; there is no account database. Search and list responses use CDN caching with stale-while-revalidate. Edition responses use a longer cache because work editions change less often. Search also keeps a bounded, per-isolate cache of successful source pages for failure-only stale fallback and a short per-source circuit after repeated failures. Stale pages are explicitly labelled and do not advance their source cursor. Client search caching is bounded; partial responses expire quickly and revalidate. Source failures remain isolated and are never presented as fresh success.
