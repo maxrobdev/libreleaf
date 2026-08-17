@@ -262,15 +262,6 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
             </button>
           ))}
         </div>
-        <aside className={styles.localAppPromo} aria-labelledby="local-app-title">
-          <div>
-            <p>FIRST-PARTY LOCAL APP</p>
-            <h3 id="local-app-title">Send from a computer without a cloud service</h3>
-            <span>One command opens LibreSend on localhost. Choose a book in its web interface, then open the private 15-minute address on the receiving device.</span>
-          </div>
-          <code>npx --yes github:maxrobdev/libreleaf</code>
-          <nav aria-label="LibreSend Local help"><a href="/guides/send-books-over-wifi-libresend">User instructions</a><a href="/docs/libresend">Technical reference</a></nav>
-        </aside>
       </section>
 
       <section className={styles.workspace} aria-labelledby="select-file-title">
@@ -341,6 +332,16 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
         )}
         {fileError ? <p className={styles.fileError} role="alert">{fileError}</p> : null}
       </section>
+
+      <aside className={styles.localAppPromo} aria-labelledby="local-app-title">
+        <div>
+          <p>FIRST-PARTY LOCAL APP</p>
+          <h3 id="local-app-title">Send from a computer without a cloud service</h3>
+          <span>One command opens LibreSend on localhost. Choose a book in its web interface, then open the private 15-minute address on the receiving device.</span>
+        </div>
+        <code>npx --yes github:maxrobdev/libreleaf</code>
+        <nav aria-label="LibreSend Local help"><a href="/guides/send-books-over-wifi-libresend">User instructions</a><a href="/docs/libresend">Technical reference</a></nav>
+      </aside>
 
       <details className={styles.relaySetup}>
         <summary>Self-hosted relay</summary>

@@ -165,7 +165,7 @@
 .destinationGrid b { grid-column: 3; grid-row: 1 / span 2; font-size: 15px; font-weight: 400; }
 
 .localAppPromo {
-  margin-top: 12px;
+  margin-top: 28px;
   padding: 17px 18px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, auto) auto;
