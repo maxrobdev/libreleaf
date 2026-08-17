@@ -352,6 +352,12 @@ export default function ListsPage() {
     return () => window.clearInterval(interval);
   }, [refreshAfterSeconds, load]);
 
+  useEffect(() => {
+    if (!data || !window.location.hash) return;
+    const target = document.getElementById(window.location.hash.slice(1));
+    target?.scrollIntoView({ block: "start" });
+  }, [data]);
+
   return (
     <main className={styles.page}>
       <header className={styles.header}>
@@ -361,7 +367,7 @@ export default function ListsPage() {
         </div>
       </header>
 
-      <div className={styles.topics}>
+      <div className={styles.topics} id="curated-topics">
         {CURATED_LISTS.map((list, listIndex) => (
           <details className={styles.topic} key={list.id}>
             <summary className={styles.topicSummary}>
@@ -397,7 +403,11 @@ export default function ListsPage() {
         {data?.lists.some((list) => list.items.length) ? (
           <div className={styles.liveLists}>
             {data.lists.filter((list) => list.items.length).map((list) => (
-              <details className={styles.liveSection} key={list.id}>
+              <details
+                className={styles.liveSection}
+                id={list.id === "gutenberg-popular" ? "popular-downloads" : list.id === "standard-ebooks-new" ? "new-open-editions" : undefined}
+                key={list.id}
+              >
                 <summary className={styles.liveSectionSummary}>
                   <span className={`${styles.state} ${styles[list.state]}`}>{sourceStatus(list.state)}</span>
                   <h3>{list.title}</h3>

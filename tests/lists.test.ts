@@ -80,6 +80,9 @@ test("keeps list sections collapsed and mobile grids dense", async () => {
   assert.match(page, /resolveCuratedBook/);
   assert.match(page, /RESOLVER_CACHE_KEY/);
   assert.match(page, /onToggle=/);
+  assert.match(page, /id="curated-topics"/);
+  assert.match(page, /"popular-downloads"/);
+  assert.match(page, /"new-open-editions"/);
   assert.doesNotMatch(page, />Resolve access</);
   assert.match(css, /\.topicGrid\s*\{[\s\S]*grid-template-columns:\s*repeat\(6,/);
   assert.match(css, /\.topicGrid\s*\{\s*grid-template-columns:\s*repeat\(2,/);

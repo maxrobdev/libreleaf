@@ -243,5 +243,7 @@ test("browser reader filters full RSS text and exposes inline LibreSend handoff"
   assert.match(component, /readerItem\.content\.split/);
   assert.match(component, /Previous/);
   assert.match(component, /Next/);
+  assert.match(component, /<details className=\{styles\.directory\}>/);
+  assert.doesNotMatch(component, /<details className=\{styles\.directory\}\s+open/);
   assert.match(styles, /\.feedDirectory li \{ align-items: flex-start; flex-direction: column; \}/);
 });

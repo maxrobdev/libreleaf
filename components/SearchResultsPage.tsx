@@ -483,17 +483,21 @@ export default function SearchResultsPage() {
           <input type="hidden" name="by" value={draftBy} />
           <input type="hidden" name="region" value={draftRegion} />
           <div className={`${styles.searchOptionsPopover} ${showMobileSearchOptions ? styles.searchOptionsPopoverOpen : ""}`} aria-hidden={!showMobileSearchOptions}>
-            <span>Search in</span>
-            <div className={styles.optionRows}>
-              {SEARCH_FIELD_OPTIONS.map((option) => (
-                <button className={draftBy === option.value ? styles.optionSelected : undefined} type="button" aria-pressed={draftBy === option.value} tabIndex={showMobileSearchOptions ? 0 : -1} onClick={() => setDraftBy(option.value)} key={option.value}>{option.label}</button>
-              ))}
+            <div className={styles.optionGroup}>
+              <span>Search in</span>
+              <div className={styles.optionRows}>
+                {SEARCH_FIELD_OPTIONS.map((option) => (
+                  <button className={draftBy === option.value ? styles.optionSelected : undefined} type="button" aria-pressed={draftBy === option.value} tabIndex={showMobileSearchOptions ? 0 : -1} onClick={() => setDraftBy(option.value)} key={option.value}>{option.label}</button>
+                ))}
+              </div>
             </div>
-            <span>Rights</span>
-            <div className={styles.optionRows}>
-              {RIGHTS_OPTIONS.map((option) => (
-                <button className={draftRegion === option.value ? styles.optionSelected : undefined} type="button" aria-pressed={draftRegion === option.value} tabIndex={showMobileSearchOptions ? 0 : -1} onClick={() => setDraftRegion(option.value)} key={option.value}>{option.label}</button>
-              ))}
+            <div className={styles.optionGroup}>
+              <span>Rights</span>
+              <div className={styles.optionRows}>
+                {RIGHTS_OPTIONS.map((option) => (
+                  <button className={draftRegion === option.value ? styles.optionSelected : undefined} type="button" aria-pressed={draftRegion === option.value} tabIndex={showMobileSearchOptions ? 0 : -1} onClick={() => setDraftRegion(option.value)} key={option.value}>{option.label}</button>
+                ))}
+              </div>
             </div>
           </div>
           <button className={styles.optionsToggle} type="button" aria-expanded={showMobileSearchOptions} aria-label={`Search options: ${SEARCH_FIELD_OPTIONS.find((option) => option.value === draftBy)?.label}, ${RIGHTS_OPTIONS.find((option) => option.value === draftRegion)?.label}`} onClick={() => setShowMobileSearchOptions((current) => !current)}>
@@ -546,9 +550,9 @@ export default function SearchResultsPage() {
               <h2 id="browse-heading">Browse</h2>
             </div>
             <nav aria-label="Book lists">
-              <a href="/lists">Curated topics <span aria-hidden="true">→</span></a>
-              <a href="/lists">Popular downloads <span aria-hidden="true">→</span></a>
-              <a href="/lists">New open editions <span aria-hidden="true">→</span></a>
+              <a href="/lists#curated-topics">Curated topics <span aria-hidden="true">→</span></a>
+              <a href="/lists#popular-downloads">Popular downloads <span aria-hidden="true">→</span></a>
+              <a href="/lists#new-open-editions">New open editions <span aria-hidden="true">→</span></a>
             </nav>
           </section>
 

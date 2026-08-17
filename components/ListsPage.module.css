@@ -31,6 +31,11 @@
   display: grid;
 }
 
+.topics,
+.liveSection {
+  scroll-margin-top: 24px;
+}
+
 .topic,
 .liveSection {
   border-bottom: 1px solid var(--line);

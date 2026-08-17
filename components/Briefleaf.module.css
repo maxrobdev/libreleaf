@@ -75,11 +75,17 @@
 .epubStatus { grid-column: 2 / -1; margin: -7px 0 0; color: var(--muted); font-size: 10px; }
 .limit { grid-column: 2 / -1; margin: -12px 0 0; color: var(--muted); font-size: 10px; }
 
-.directory { margin-top: 34px; }
-.directoryHeading { padding-bottom: 15px; display: flex; align-items: end; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); }
-.directoryHeading h2 { margin: 0; font-family: var(--font-display), serif; font-size: 31px; letter-spacing: -.025em; }
-.directoryHeading > p { margin: 0; color: var(--muted); font-size: 11px; white-space: nowrap; }
-.directoryFilters { margin-top: 14px; display: grid; grid-template-columns: minmax(220px, 1.7fr) repeat(3, minmax(120px, 1fr)); gap: 9px; }
+.directory { margin-top: 34px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.directorySummary { min-height: 64px; padding: 12px 0; display: flex; align-items: center; justify-content: space-between; gap: 20px; cursor: pointer; list-style: none; }
+.directorySummary::-webkit-details-marker { display: none; }
+.directorySummary > span:first-child { min-width: 0; display: grid; gap: 2px; }
+.directorySummary small { color: var(--muted); font-size: 8px; font-weight: 600; letter-spacing: .12em; }
+.directorySummary strong { font-family: var(--font-display), serif; font-size: 24px; font-weight: 500; letter-spacing: -.02em; }
+.directorySummary > span:last-child { margin-left: auto; color: var(--muted); font-size: 10px; white-space: nowrap; }
+.directorySummary::after { content: "+"; color: var(--muted); font-size: 18px; font-weight: 400; }
+.directory[open] > .directorySummary::after { content: "−"; }
+.directoryBody { padding: 0 0 18px; }
+.directoryFilters { display: grid; grid-template-columns: minmax(220px, 1.7fr) repeat(3, minmax(120px, 1fr)); gap: 9px; }
 .directoryFilters label { display: grid; gap: 5px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .directoryFilters input, .directoryFilters select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 5px; background: #fbf9f3; color: var(--ink); font: 600 12px var(--font-sans), sans-serif; text-transform: none; }
 .feedDirectory { margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; list-style: none; }
@@ -165,7 +171,7 @@
   .page { width: min(100% - 28px, 1040px); padding-top: 40px; }
   .fields, .sources ul, .feedDirectory, .directoryFilters { grid-template-columns: 1fr; }
   .actions > * { flex: 1; }
-  .directoryHeading { align-items: start; }
+  .directorySummary { align-items: center; }
   .feedDirectory li { align-items: flex-start; flex-direction: column; }
   .feedDirectory li > div:last-child { align-self: flex-start; }
   .feedDirectory small { white-space: normal; }

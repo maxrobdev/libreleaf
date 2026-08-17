@@ -334,36 +334,38 @@ export function Briefleaf() {
         <p className={styles.limit}>Up to {BRIEF_MAX_SELECTED_FEEDS} feeds and 24 items. No article pages are scraped.</p>
       </section>
 
-      <section className={styles.directory} aria-labelledby="brief-directory">
-        <div className={styles.directoryHeading}>
-          <div><p className="eyebrow">DIRECTORY</p><h2 id="brief-directory">Reviewed official RSS feeds</h2></div>
-          <p>{selectedFeedIds.length}/{BRIEF_MAX_SELECTED_FEEDS} selected</p>
-        </div>
-        <div className={styles.directoryFilters}>
+      <details className={styles.directory}>
+        <summary className={styles.directorySummary} id="brief-directory">
+          <span><small>DIRECTORY</small><strong>RSS sources</strong></span>
+          <span>{selectedFeedIds.length}/{BRIEF_MAX_SELECTED_FEEDS} selected</span>
+        </summary>
+        <div className={styles.directoryBody}>
+          <div className={styles.directoryFilters}>
           <label>Find a feed<input type="search" value={directoryQuery} onChange={(event) => setDirectoryQuery(event.target.value)} placeholder="Publisher, country or topic" /></label>
           <label>Country<select value={directoryCountry} onChange={(event) => setDirectoryCountry(event.target.value as DirectoryCountry)}><option value="ALL">All countries</option>{BRIEF_COUNTRIES.map((value) => <option value={value} key={value}>{BRIEF_COUNTRY_LABELS[value]}</option>)}</select></label>
           <label>Topic<select value={directoryTopic} onChange={(event) => setDirectoryTopic(event.target.value as DirectoryTopic)}><option value="ALL">All topics</option>{BRIEF_TOPICS.map((value) => <option value={value} key={value}>{BRIEF_TOPIC_LABELS[value]}</option>)}</select></label>
           <label>Language<select value={directoryLanguage} onChange={(event) => setDirectoryLanguage(event.target.value)}><option value="ALL">All languages</option>{languages.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
+          </div>
+          {selectionError ? <p className={styles.selectionError} role="alert">{selectionError}</p> : null}
+          <ul className={styles.feedDirectory}>
+            {visibleFeeds.map((feed) => {
+              const selected = selectedFeedIds.includes(feed.id);
+              const duplicateUrl = !selected && selectedFeedIds.some((feedId) => feedById.get(feedId)?.feedUrl === feed.feedUrl);
+              const disabled = !selected && (selectedFeedIds.length >= BRIEF_MAX_SELECTED_FEEDS || duplicateUrl);
+              return (
+                <li key={feed.id}>
+                  <div className={styles.feedChoice}>
+                    <input aria-label={`Include ${feed.name} ${BRIEF_TOPIC_LABELS[feed.topic]}`} id={`brief-feed-${feed.id}`} type="checkbox" checked={selected} disabled={disabled} onChange={() => toggleFeed(feed)} />
+                    <span><strong>{feed.name}</strong><small>{BRIEF_TOPIC_LABELS[feed.topic]} · {countryNames(feed)} · {feed.language}</small></span>
+                  </div>
+                  <div><a href={feed.feedUrl} target="_blank" rel="noreferrer">RSS ↗</a><a href={feed.homepage} target="_blank" rel="noreferrer">Publisher ↗</a></div>
+                </li>
+              );
+            })}
+          </ul>
+          {!visibleFeeds.length ? <p className={styles.noFeeds}>No reviewed feeds match these filters.</p> : null}
         </div>
-        {selectionError ? <p className={styles.selectionError} role="alert">{selectionError}</p> : null}
-        <ul className={styles.feedDirectory}>
-          {visibleFeeds.map((feed) => {
-            const selected = selectedFeedIds.includes(feed.id);
-            const duplicateUrl = !selected && selectedFeedIds.some((feedId) => feedById.get(feedId)?.feedUrl === feed.feedUrl);
-            const disabled = !selected && (selectedFeedIds.length >= BRIEF_MAX_SELECTED_FEEDS || duplicateUrl);
-            return (
-              <li key={feed.id}>
-                <div className={styles.feedChoice}>
-                  <input aria-label={`Include ${feed.name} ${BRIEF_TOPIC_LABELS[feed.topic]}`} id={`brief-feed-${feed.id}`} type="checkbox" checked={selected} disabled={disabled} onChange={() => toggleFeed(feed)} />
-                  <span><strong>{feed.name}</strong><small>{BRIEF_TOPIC_LABELS[feed.topic]} · {countryNames(feed)} · {feed.language}</small></span>
-                </div>
-                <div><a href={feed.feedUrl} target="_blank" rel="noreferrer">RSS ↗</a><a href={feed.homepage} target="_blank" rel="noreferrer">Publisher ↗</a></div>
-              </li>
-            );
-          })}
-        </ul>
-        {!visibleFeeds.length ? <p className={styles.noFeeds}>No reviewed feeds match these filters.</p> : null}
-      </section>
+      </details>
 
       <section className={styles.preview} aria-labelledby="brief-preview">
         <div className={styles.previewHeading}>
