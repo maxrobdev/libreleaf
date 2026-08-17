@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
-import { guides, type Guide } from "./content/guides";
+import { guides, type Guide } from "./content/guides.ts";
 
 const entry = (path: string) => fileURLToPath(new URL(`./netlify/${path}`, import.meta.url));
 
