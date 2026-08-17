@@ -29,7 +29,7 @@ I built LibreLeaf because public-domain knowledge should be easy for people to f
 - Provides separate trending, free-download, and library lists
 - Includes a directory of official ebook tools, open catalogues, and UK library services
 - Combines reviewed publisher RSS feeds into an attributed browser reader and EPUB with Briefleaf
-- Shares lawful access links and local EPUB/PDF/MOBI files through the modular LibreSend framework, with an optional persistent self-hosted relay
+- Routes local EPUB/PDF/MOBI files to phones, Kindle and Kobo through system share, official services, a temporary same-Wi-Fi/OPDS bridge or an optional encrypted self-hosted relay
 - Exposes standard citation-ready `search` and `fetch` plus focused `search_books` and `resolve_access` tools over MCP
 - Works responsively across desktop and mobile layouts
 
@@ -87,6 +87,8 @@ npm run dev       # start the local development server
 npm run lint      # run ESLint
 npm run build     # create a production build
 npm run build:netlify # create the Netlify deployment
+npm run libresend # open the first-party localhost transfer app
+npm run libresend:wifi -- "/path/to/book.epub" # headless Wi-Fi/OPDS route for scripts
 npm run libresend:relay # run the optional loopback-only encrypted relay
 npm test          # build and run the Node test suite
 npm run check     # run every CI check
@@ -115,7 +117,7 @@ docs/                     # architecture, source policy, MCP and submission note
 tests/                    # route, source, MCP, SEO and rendered-output tests
 ```
 
-LibreSend is local-only by default. Its optional self-hosted relay receives client-encrypted, expiring, one-use envelopes and is deliberately disabled on the public LibreLeaf deployment. The repository includes a portable Fetch handler, memory and atomic filesystem stores, privacy-bounded relay modules, custom browser transports, a Node server, hardened Docker Compose deployment and headless SDK entry point. Operators can mount one reviewed local host extension for custom storage, policy and lifecycle code; remote loading and hot reload are excluded. See the [LibreSend guide](docs/LIBRESEND.md) and [extension contract](docs/LIBRESEND_EXTENSIONS.md).
+LibreSend is local-only by default. Run `npx --yes github:maxrobdev/libreleaf` to open the maintained LibreSend Local web interface on the computer. It exposes one random, expiring download page and one-book OPDS feed to the current Wi-Fi without uploading the file or listing the computer's library. The `/send` route also gives exact phone, Kindle and Kobo steps. The optional self-hosted relay receives client-encrypted, expiring, one-use envelopes and is deliberately disabled on the public LibreLeaf deployment. The repository includes a portable Fetch handler, memory and atomic filesystem stores, privacy-bounded relay modules, custom browser transports, a Node server, hardened Docker Compose deployment and headless SDK entry point. Operators can mount one reviewed local host extension for custom storage, policy and lifecycle code; remote loading and hot reload are excluded. See the [LibreSend user guide](https://libreleaf-books.netlify.app/guides/send-books-over-wifi-libresend/), [technical guide](docs/LIBRESEND.md) and [extension contract](docs/LIBRESEND_EXTENSIONS.md).
 
 LibreLeaf uses React 19, TypeScript, vinext, Vite, Netlify Functions and Netlify Edge Functions. Saved books remain in `localStorage`; there is no account database or tracking profile. See [Architecture](docs/ARCHITECTURE.md) and the [source policy](docs/SOURCE_POLICY.md).
 

@@ -3,12 +3,13 @@ import { LibreSend } from "../../components/LibreSend";
 import { getSiteUrl } from "../seo";
 
 export const metadata: Metadata = {
-  title: "LibreSend — Local and encrypted ebook handoff",
-  description: "Share an EPUB, PDF or MOBI locally, or connect an optional self-hosted encrypted one-use relay.",
+  title: "LibreSend — Send EPUB and PDF to phones, Kindle and Kobo",
+  description: "Move an EPUB or PDF to iPhone, Android, Kindle or Kobo using local sharing, the first-party LibreSend Local app or an optional encrypted relay.",
+  keywords: ["send EPUB to Kindle", "send EPUB to Kobo", "Kobo Wi-Fi transfer", "Kindle browser fallback", "OPDS ebook transfer", "LibreSend Local"],
   alternates: { canonical: "/send" },
   openGraph: {
-    title: "LibreSend — Local and encrypted ebook handoff",
-    description: "Use local share/save or an explicitly configured self-hosted encrypted relay.",
+    title: "LibreSend — Send EPUB and PDF to phones, Kindle and Kobo",
+    description: "Device-specific ebook delivery with local sharing, official Kindle and Kobo routes, the LibreSend Local app and an optional encrypted relay.",
     url: "/send",
   },
 };
@@ -21,7 +22,7 @@ export default async function SendPage() {
     "@type": "WebApplication",
     name: "LibreSend",
     url,
-    description: "A local-first browser framework for sharing EPUB, PDF and MOBI files locally or through an optional self-hosted encrypted relay.",
+    description: "A destination-aware tool and first-party local application for moving EPUB, PDF and MOBI files to phones, Kindle and Kobo through local sharing, official services, trusted Wi-Fi or an optional encrypted relay.",
     applicationCategory: "UtilitiesApplication",
     operatingSystem: "Any",
     browserRequirements: "A modern browser; file sharing depends on browser and operating-system support.",

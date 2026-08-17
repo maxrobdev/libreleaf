@@ -14,7 +14,8 @@ Licence: MIT for the software; linked books and third-party metadata retain thei
 - [Resolver architecture](https://libreleaf-books.netlify.app/docs/resolver/): Canonical identity, clustering and explainable ranking.
 - [Sources and rights](https://libreleaf-books.netlify.app/docs/source-rights/): Official sources, access labels and jurisdiction model.
 - [Open resolver index](https://libreleaf-books.netlify.app/docs/resolver-index/): Self-hosted SQLite/FTS5 index and production status.
-- [LibreSend](https://libreleaf-books.netlify.app/docs/libresend/): Local handoff and optional self-hosted encrypted relay.
+- [LibreSend](https://libreleaf-books.netlify.app/docs/libresend/): First-party localhost transfer app, device routes and optional encrypted relay.
+- [LibreSend Local user guide](https://libreleaf-books.netlify.app/guides/send-books-over-wifi-libresend/): Send one ebook to a phone, Kobo or OPDS reader over trusted Wi-Fi.
 - [Briefleaf](https://libreleaf-books.netlify.app/docs/briefleaf/): Reviewed RSS selection, reading and EPUB generation.
 
 ## Machine interfaces

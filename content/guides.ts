@@ -160,14 +160,70 @@ export const guides: Guide[] = [
     action: { label: "Open LibreSend", href: "/send" },
   },
   {
+    slug: "send-books-over-wifi-libresend",
+    title: "How to send an ebook over Wi-Fi with LibreSend",
+    description: "Run the first-party LibreSend Local app, choose one book in its localhost interface, and move it to a phone, Kobo or reader app without a cloud upload.",
+    category: "Devices",
+    author: "Max Robson",
+    published: "2026-08-17",
+    updated: "2026-08-17",
+    readingMinutes: 5,
+    sections: [
+      {
+        heading: "What LibreSend Local does",
+        paragraphs: [
+          "LibreSend Local is LibreLeaf's maintained device-transfer program. It runs on the computer that already has the EPUB, PDF or MOBI and opens a private control page at localhost. The page is the interface to the local program; it is not the public LibreLeaf website and it does not upload the selected book to LibreLeaf or another cloud service.",
+          "After a file is selected, the program exposes only that file at a random address on the current Wi-Fi network. It also creates a one-book OPDS catalogue for compatible reading apps. The address expires after 15 minutes, there is no folder browser, and closing the program removes the temporary copy. This is intended for a home or other trusted network, not public Wi-Fi or an internet-facing server.",
+        ],
+      },
+      {
+        heading: "Start the local web interface",
+        steps: [
+          "Install Node.js 22.13 or newer from the official Node.js site if it is not already installed.",
+          "Open Terminal on macOS or Linux, or Windows Terminal on Windows, and run: npx --yes github:maxrobdev/libreleaf",
+          "LibreSend prints a private localhost address and normally opens it in the default browser. If the browser does not open, copy the printed address into a browser on that same computer.",
+          "Choose one EPUB, PDF or MOBI, or drop it onto the selection area. Wait until the page displays a receiving address and an OPDS address.",
+        ],
+        note: "The first run downloads LibreSend's open-source package from its GitHub repository. The program then runs locally. Review the source and release history before running it if you administer the computer.",
+      },
+      {
+        heading: "Receive the book",
+        steps: [
+          "Keep the computer and receiving device connected to the same trusted Wi-Fi. Do not use a guest network that prevents devices from seeing each other.",
+          "For a phone or tablet, open the displayed address, download the file, then choose Apple Books, Kindle, KOReader or another installed reading app.",
+          "For a Kobo, type the address into the Kobo browser and download the EPUB or PDF. Browser capability varies by model, so use Kobo's official USB process if the download is not accepted.",
+          "For an OPDS-capable reading app, add the displayed OPDS address as a custom catalogue and download the single listed title.",
+          "Use Remove book or Close LibreSend when finished. The receiving link also expires automatically after 15 minutes.",
+        ],
+      },
+      {
+        heading: "Security and troubleshooting",
+        bullets: [
+          "The localhost control page is bound to the computer only and includes a random control path. Other devices receive the book page, not the controls.",
+          "The LAN transfer uses local HTTP and is not encrypted. Anyone controlling an untrusted network may observe traffic, so use a trusted network only.",
+          "If the address does not open, check that both devices use the same Wi-Fi, disable client isolation or a guest network, and allow Node.js through the computer firewall for the local network only.",
+          "MOBI is accepted by LibreSend for local movement, but Amazon's current Send to Kindle list does not include MOBI. Convert a lawful, unprotected file to EPUB when the destination requires it.",
+          "For a permanent library rather than a 15-minute handoff, use an authenticated calibre Content server or LibreSend's separately documented encrypted self-hosted relay.",
+        ],
+      },
+    ],
+    references: [
+      { label: "Node.js downloads", url: "https://nodejs.org/en/download" },
+      { label: "Kobo USB transfer instructions", url: "https://help.kobo.com/hc/en-us/articles/360024775093-Add-non-protected-PDF-and-ePub-files-to-your-Kobo-eReader-using-your-computer" },
+      { label: "calibre Content server", url: "https://manual.calibre-ebook.com/server.html" },
+    ],
+    related: ["read-free-books-on-phone", "send-ebook-to-kindle", "add-ebook-to-kobo"],
+    action: { label: "Open LibreSend", href: "/send" },
+  },
+  {
     slug: "send-ebook-to-kindle",
     title: "How to send an ebook to Kindle",
-    description: "Use Amazon's supported Send to Kindle route for an EPUB or PDF and know when USB transfer is the better option.",
+    description: "Send an EPUB or PDF through the Kindle app, Amazon's web uploader or approved email, with a lightweight fallback page for older Kindle browsers.",
     category: "Devices",
     author: "Max Robson",
     published: "2026-08-16",
-    updated: "2026-08-16",
-    readingMinutes: 4,
+    updated: "2026-08-17",
+    readingMinutes: 5,
     sections: [
       {
         heading: "Use a supported, lawful file",
@@ -179,12 +235,19 @@ export const guides: Guide[] = [
       {
         heading: "Send the document",
         steps: [
-          "Open Amazon's Send to Kindle page or an official Send to Kindle app and sign in to the account used by the target Kindle.",
-          "Select the local EPUB or PDF. Check the displayed filename and remove personal information from it if needed.",
-          "Choose the target library or device options shown by Amazon, submit, and wait for processing.",
+          "On iPhone or Android, open LibreSend's file route or the operating-system share sheet and choose the Kindle app. Confirm the title and add it to the Kindle library.",
+          "On a computer, open Amazon's Send to Kindle page, sign in to the account used by the target Kindle and select the local EPUB or PDF. Amazon's current web limit is 200 MB.",
+          "For email, send from an approved address to the Send to Kindle address shown for the device. Amazon currently allows up to 25 attachments totalling 50 MB.",
           "Connect the Kindle to Wi-Fi, sync it, and check the Library under documents as well as books.",
         ],
-        note: "LibreSend can open the operating-system share sheet for a local file, but it is not an Amazon integration. The final import is handled by Amazon's service or app.",
+        note: "LibreSend passes the real file to the operating-system share sheet or opens Amazon's official uploader. It does not possess an undocumented Kindle upload API, and the final import remains under the reader's Amazon account.",
+      },
+      {
+        heading: "Use the e-reader fallback page",
+        paragraphs: [
+          "The public /send page contains a small HTML fallback for older Kindle and Kobo browsers that do not run the full JavaScript interface. It keeps the official Kindle steps, the LibreSend Local command and the Kobo USB fallback readable without depending on modern modules or the site's web fonts.",
+          "The fallback is an instruction page, not a hidden delivery channel. Opening a LibreSend Wi-Fi address in a Kindle browser is not treated as a supported Kindle import. Use the Kindle app, Amazon web uploader or approved email route for reliable library delivery.",
+        ],
       },
       {
         heading: "When it does not appear",
@@ -198,20 +261,21 @@ export const guides: Guide[] = [
     ],
     references: [
       { label: "Amazon Send to Kindle", url: "https://www.amazon.com/sendtokindle" },
-      { label: "Amazon Kindle help", url: "https://www.amazon.co.uk/gp/help/customer/display.html?nodeId=G5WYD9SAF7PGXRNA" },
+      { label: "Amazon Kindle formats and methods", url: "https://digprjsurvey.amazon.co.uk/csad/help/node/G5WYD9SAF7PGXRNA" },
+      { label: "Amazon Send to Kindle email", url: "https://digprjsurvey.amazon.co.uk/csad/help/node/G7NECT4B4ZWHQ8WV" },
     ],
-    related: ["ebook-formats-epub-pdf-mobi-web", "use-calibre-open-books", "verify-book-source-licence-edition"],
+    related: ["send-books-over-wifi-libresend", "ebook-formats-epub-pdf-mobi-web", "add-ebook-to-kobo"],
     action: { label: "Prepare a local file with LibreSend", href: "/send" },
   },
   {
     slug: "add-ebook-to-kobo",
     title: "How to add an ebook to Kobo",
-    description: "Transfer a non-protected EPUB or PDF to a Kobo reader by USB and understand what will and will not sync.",
+    description: "Transfer a non-protected EPUB or PDF to Kobo with LibreSend Local, supported cloud storage or the official USB fallback.",
     category: "Devices",
     author: "Max Robson",
     published: "2026-08-16",
-    updated: "2026-08-16",
-    readingMinutes: 4,
+    updated: "2026-08-17",
+    readingMinutes: 5,
     sections: [
       {
         heading: "Check the file before transfer",
@@ -221,7 +285,20 @@ export const guides: Guide[] = [
         ],
       },
       {
-        heading: "Copy by USB",
+        heading: "Try LibreSend Local on trusted Wi-Fi",
+        steps: [
+          "Run npx --yes github:maxrobdev/libreleaf on the computer and choose the EPUB or PDF in the localhost interface.",
+          "Keep the computer and Kobo on the same trusted Wi-Fi, then type the displayed IP address into the Kobo browser.",
+          "Choose Download this book. The receiving page has no JavaScript, uses direct attachment headers and supports byte-range requests for limited browsers.",
+          "If the Kobo browser does not accept the download on that model or firmware, stop and use USB. LibreSend does not describe an unverified browser download as universal Kobo support.",
+        ],
+        note: "LibreSend's receiving interface is deliberately simpler than the public site. The full /send page also retains a readable HTML fallback when an e-reader browser cannot run JavaScript modules.",
+      },
+      {
+        heading: "Use cloud storage or USB",
+        paragraphs: [
+          "Kobo documents Google Drive and Dropbox support for Forma, Sage, Elipsa, Elipsa 2E and Libra Colour. Link the service under More → Settings → Accounts, place the non-protected EPUB or PDF in the Kobo folder, then sync. Feature availability and required software versions remain controlled by Kobo.",
+        ],
         steps: [
           "Connect the Kobo eReader to the computer with a data-capable USB cable and choose Connect on the reader if prompted.",
           "Open the mounted KOBOeReader drive in Finder or File Explorer.",
@@ -241,9 +318,10 @@ export const guides: Guide[] = [
     ],
     references: [
       { label: "Kobo: add non-protected EPUB and PDF files", url: "https://help.kobo.com/hc/en-us/articles/360024775093-Add-non-protected-PDF-and-ePub-files-to-your-Kobo-eReader-using-your-computer" },
-      { label: "Kobo eReader help", url: "https://help.kobo.com/hc/en-us/categories/360001616473-Kobo-eReaders" },
+      { label: "Kobo Google Drive instructions", url: "https://help.kobo.com/hc/en-us/articles/15335985512983-Add-books-to-your-eReader-using-Google-Drive" },
+      { label: "Kobo Dropbox instructions", url: "https://help.kobo.com/hc/en-us/articles/360033830114-Add-books-to-your-eReader-using-Dropbox" },
     ],
-    related: ["use-calibre-open-books", "ebook-formats-epub-pdf-mobi-web", "verify-book-source-licence-edition"],
+    related: ["send-books-over-wifi-libresend", "send-ebook-to-kindle", "use-calibre-open-books"],
     action: { label: "Search for an open edition", href: "/search" },
   },
   {

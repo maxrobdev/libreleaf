@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LibreSend — Local and encrypted ebook handoff | LibreLeaf</title>
-    <meta name="description" content="Share an EPUB, PDF or MOBI locally, or connect an optional self-hosted encrypted one-use relay." />
+    <title>LibreSend — Send EPUB and PDF to phones, Kindle and Kobo | LibreLeaf</title>
+    <meta name="description" content="Move EPUB and PDF files to iPhone, Android, Kindle or Kobo with local sharing, the first-party LibreSend Local app and optional encrypted transfer." />
+    <meta name="keywords" content="send EPUB to Kindle, send EPUB to Kobo, Kobo Wi-Fi transfer, Kindle browser fallback, OPDS ebook transfer, LibreSend Local" />
     <meta name="libresend-relay-url" content="" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://libreleaf-books.netlify.app/send/" />
@@ -12,28 +13,41 @@
     <meta property="og:locale" content="en_GB" />
     <meta property="og:site_name" content="LibreLeaf" />
     <meta property="og:url" content="https://libreleaf-books.netlify.app/send/" />
-    <meta property="og:title" content="LibreSend — Local and encrypted ebook handoff" />
-    <meta property="og:description" content="Use local share/save or an explicitly configured self-hosted encrypted relay." />
+    <meta property="og:title" content="LibreSend — Send EPUB and PDF to phones, Kindle and Kobo" />
+    <meta property="og:description" content="Device-specific ebook delivery with local sharing, official Kindle and Kobo routes and the LibreSend Local app." />
     <meta property="og:image" content="https://libreleaf-books.netlify.app/og.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="LibreSend — Local and encrypted ebook handoff" />
-    <meta name="twitter:description" content="Use local share/save or an explicitly configured self-hosted encrypted relay." />
+    <meta name="twitter:title" content="LibreSend — Send EPUB and PDF to phones, Kindle and Kobo" />
+    <meta name="twitter:description" content="Device-specific ebook delivery with local sharing, official Kindle and Kobo routes and the LibreSend Local app." />
     <meta name="twitter:image" content="https://libreleaf-books.netlify.app/og.png" />
     <script type="application/ld+json">
-      {"@context":"https://schema.org","@type":"WebApplication","name":"LibreSend","url":"https://libreleaf-books.netlify.app/send/","description":"A local-first browser framework for EPUB, PDF and MOBI handoff, with an optional self-hosted encrypted relay.","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"GBP"}}
+      {"@context":"https://schema.org","@type":"WebApplication","name":"LibreSend","url":"https://libreleaf-books.netlify.app/send/","description":"A destination-aware tool and first-party local application for moving EPUB and PDF files to phones, Kindle and Kobo using local sharing, official services, trusted Wi-Fi or an optional encrypted relay.","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"GBP"}}
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&amp;family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet" />
+    <style>
+      .send-static { width: min(760px, calc(100% - 32px)); margin: 0 auto; padding: 36px 0 60px; color: #183126; font: 16px/1.55 Arial, sans-serif; }
+      .send-static h1 { margin: 0 0 10px; font: 600 48px/1 Georgia, serif; }
+      .send-static h2 { margin: 28px 0 8px; font: 600 25px/1.1 Georgia, serif; }
+      .send-static p, .send-static li { max-width: 660px; }
+      .send-static code { display: block; padding: 12px; overflow-wrap: anywhere; border: 1px solid #bbb7ad; background: #f3f0e8; }
+      .send-static a { color: #183126; font-weight: 700; }
+    </style>
   </head>
   <body>
     <div id="root">
-      <noscript>
-        <main>
-          <h1>LibreSend</h1>
-          <p>Local EPUB, PDF and MOBI handoff with an optional self-hosted encrypted relay. JavaScript is required.</p>
-        </main>
-      </noscript>
+      <main class="send-static">
+        <p>E-READER FALLBACK</p>
+        <h1>LibreSend</h1>
+        <p>This lightweight page remains readable when an older Kindle or Kobo browser cannot run the full interface.</p>
+        <h2>Kindle</h2>
+        <ol><li>On a phone, share the EPUB or PDF to the Kindle app.</li><li>On a computer, open <a href="https://www.amazon.co.uk/sendtokindle">Amazon Send to Kindle</a>, select the file and sync the Kindle.</li><li>For email delivery, use the approved address and device email in Amazon's personal-document settings.</li></ol>
+        <h2>Kobo or another device on this Wi-Fi</h2>
+        <p>Run the first-party LibreSend Local app on the computer, choose one book in its localhost page, then open the private address it displays on the receiving device.</p>
+        <code>npx --yes github:maxrobdev/libreleaf</code>
+        <p><a href="/guides/send-books-over-wifi-libresend/">Full user instructions</a> · <a href="https://help.kobo.com/hc/en-us/articles/360024775093-Add-non-protected-PDF-and-ePub-files-to-your-Kobo-eReader-using-your-computer">Kobo USB fallback</a></p>
+      </main>
     </div>
     <script type="module" src="/main.tsx"></script>
   </body>

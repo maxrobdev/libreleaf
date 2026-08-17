@@ -24,6 +24,7 @@ test("covers device, rights, research, formats, API and MCP intents", () => {
     "read-free-books-on-phone",
     "open-epub-on-android",
     "open-epub-on-iphone-ipad",
+    "send-books-over-wifi-libresend",
     "send-ebook-to-kindle",
     "add-ebook-to-kobo",
     "use-calibre-open-books",

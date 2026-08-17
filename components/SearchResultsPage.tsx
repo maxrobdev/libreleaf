@@ -547,7 +547,7 @@ export default function SearchResultsPage() {
           <section className="browse-links" aria-labelledby="browse-heading">
             <div>
               <p className="eyebrow">BROWSE</p>
-              <h2 id="browse-heading">Browse</h2>
+              <h2 id="browse-heading">Book lists</h2>
             </div>
             <nav aria-label="Book lists">
               <a href="/lists#curated-topics">Curated topics <span aria-hidden="true">→</span></a>

@@ -118,7 +118,7 @@ Every substantive product request from the build conversation is represented bel
 
 ### LL-001 · LibreSend handoff framework
 
-- Status: framework v3 implemented and deployed; physical-device verification pending
+- Status: framework v4 implemented; physical-device verification pending
 - Owner: root agent
 - Build `/send` as a local-first tool for EPUB, PDF, and MOBI files.
 - Use the browser/OS file-share sheet where supported; files remain on the user's device.
@@ -133,6 +133,8 @@ Every substantive product request from the build conversation is represented bel
 - Acceptance: local share/save works without a server; book and RSS links hand off inline; a self-hoster can run the reference relay with volatile or persistent storage or implement the documented store/module/transport interfaces; a custom relay can be connected without proxying it through LibreLeaf; the public deployment never silently stores files.
 - Verification: sixteen focused tests cover EPUB/PDF/MOBI validation, exact Web Share payloads, share/copy fallback, AES-GCM round trip and tamper failure, bounded bodies/capacity, capability checks, exact origins, portable fragment-only relay links, persistent storage across instances, concurrent one-use claims, module authorisation/metadata-only events, trusted local extension loading, remote-URL rejection, custom-store/header/capability validation, single-use deletion, and duplicate-safe transports. The extension validator, both Compose configurations, `npm run check`, and a real `community-host` relay capability response pass. Production deploy `6a82d6efee37ee71e390c6bd` exposes the framework controls while keeping the public relay Off. Real-device share-sheet and cross-device relay verification remain required.
 - Next pass: test real EPUB/PDF/MOBI handoff on iPhone and Android, installed Apple Books/Kindle/KOReader targets, cross-device relay links on an operator-controlled test relay, interruption/retry behaviour, and accessibility with VoiceOver/TalkBack.
+- V4 adds a destination-first route planner for phones/tablets, Kindle, Kobo and same-Wi-Fi delivery; current official Amazon/Kobo/Apple instructions; explicit format/model/service limits; and a dependency-free expiring LAN bridge with a no-script e-ink page, byte-range downloads and a one-entry OPDS acquisition feed. The bridge never lists directories or uploads a file to LibreLeaf.
+- V5 turns the bridge into the maintained LibreSend Local program: a one-command executable opens a tokenised loopback-only control interface, accepts drag/drop locally, exposes only the selected book to the LAN, provides download and OPDS addresses, supports remove/stop controls, and cleans its mode-0600 temporary file. The path-based bridge remains available for scripts.
 
 ### LL-002 · Reliable curated lists
 

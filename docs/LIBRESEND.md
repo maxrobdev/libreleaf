@@ -11,6 +11,128 @@ LibreSend separates the file from the way it moves:
 3. **Link handoff** shares a lawful source URL or copies it to the clipboard. Book results and Briefleaf use this without proxying content.
 4. **Encrypted relay** is optional. The client encrypts the complete file with AES-256-GCM, uploads only the opaque envelope and puts the key in the receive-link fragment.
 
+## Device routes
+
+The `/send` page asks for the destination before it asks for a file. It then shows one route and its fallback instead of presenting every transport at once.
+
+### iPhone and iPad
+
+1. Choose **Phone or tablet**, then choose the EPUB or PDF.
+2. Use **Open share sheet** and select Books, Kindle or another installed reader.
+3. If the reader is absent, use **Save file**, open the file in Files and share it from there.
+4. For Apple Books cross-device sync, enable iCloud Drive and Books in iCloud settings.
+
+Apple documents opening received PDFs through Share → Books and syncing Books through iCloud:
+
+- https://support.apple.com/en-gb/guide/iphone/iphab2193d5/ios
+- https://support.apple.com/en-gb/guide/icloud/mm3941ae3362/icloud
+
+### Android
+
+1. Choose **Phone or tablet**, then choose the EPUB or PDF.
+2. Use **Open share sheet** and select Kindle, KOReader or the installed reading app.
+3. If file sharing is unavailable, save the file, open Downloads and use **Open with**.
+
+LibreSend cannot select an app on the user's behalf. The operating system owns the share sheet.
+
+### Kindle
+
+Amazon does not publish a general third-party upload API for Kindle personal documents. LibreSend therefore uses the supported user-controlled paths:
+
+- On iOS or Android, open the system share sheet and choose the Kindle app.
+- On desktop, open https://www.amazon.co.uk/sendtokindle and choose the same local file. Amazon's web route accepts EPUB and PDF files up to 200 MB.
+- Email is a fallback for up to 25 attachments totalling 50 MB. The sender must be approved in Amazon's Personal Document settings.
+
+Amazon's current Send to Kindle list includes EPUB and PDF but not MOBI. Official references:
+
+- https://digprjsurvey.amazon.co.uk/csad/help/node/G5WYD9SAF7PGXRNA
+- https://digprjsurvey.amazon.co.uk/csad/help/node/G7NECT4B4ZWHQ8WV
+
+Web security prevents LibreLeaf from inserting a file selected on `/send` into Amazon's website. The web route must ask the user to select it again; LibreSend states this explicitly.
+
+### Kobo
+
+Kobo officially supports non-protected EPUB and PDF sideloading.
+
+- Google Drive and Dropbox are available on Kobo Forma, Sage, Elipsa, Elipsa 2E and Libra Colour. Link the service under **More → Settings → Accounts**, put the file in the Kobo folder, then sync the eReader.
+- USB works across Kobo models: connect the reader, tap **Connect**, copy the file to `KOBOeReader`, eject and open **My Books**.
+- LibreSend Wi-Fi is an experimental local browser/OPDS route for compatible devices and apps. It does not replace the official USB fallback.
+
+Official Kobo instructions:
+
+- https://help.kobo.com/hc/en-us/articles/15335985512983-Add-books-to-your-eReader-using-Google-Drive
+- https://help.kobo.com/hc/en-us/articles/360033830114-Add-books-to-your-eReader-using-Dropbox
+- https://help.kobo.com/hc/en-us/articles/360024775093-Add-non-protected-PDF-and-ePub-files-to-your-Kobo-eReader-using-your-computer
+
+## LibreSend Local
+
+LibreSend Local is the first-party application for moving one EPUB, PDF or MOBI from a computer without a cloud account. It opens a private localhost web interface where the user can choose or drop a file. The program then creates a random receiving address on the local network, exposes no directory listing, serves a no-script e-ink page, supports HTTP range downloads and publishes a one-entry OPDS acquisition feed.
+
+### Run the app
+
+Node.js 22.13 or newer is required. Run the maintained package directly from the LibreLeaf GitHub repository:
+
+```sh
+npx --yes github:maxrobdev/libreleaf
+```
+
+LibreSend normally opens the localhost interface automatically. If it cannot open a browser, copy the private address printed in the terminal into a browser on that computer. Choose one book in the page; no terminal file path is needed.
+
+For development from a checkout:
+
+
+```sh
+git clone https://github.com/maxrobdev/libreleaf.git
+cd libreleaf
+npm install
+npm run libresend
+```
+
+After selection, the local page shows receiving addresses similar to:
+
+```text
+http://192.168.1.42:8789/7K3M9QW2BC
+http://192.168.1.42:8789/7K3M9QW2BC/opds
+```
+
+Use it as follows:
+
+1. Keep the computer and receiving device on the same trusted Wi-Fi.
+2. Type the first address into the device browser, or add the second address to an OPDS-capable reader app.
+3. Download the book.
+4. Use **Remove book** or **Close LibreSend** when finished. `Ctrl+C` also stops the program. The receiving link closes after 15 minutes even if the control app remains open.
+
+The random path reduces accidental discovery but local HTTP is not encrypted. Other people controlling the same network may observe traffic. Use the bridge only on a trusted network and do not treat it as an internet-facing server. For a permanent library, use calibre's authenticated Content server: https://manual.calibre-ebook.com/server.html
+
+### E-ink browser fallback
+
+LibreSend has two deliberately small fallback surfaces:
+
+- The LAN receiving page is a no-script, no-web-font HTML document with one download link. The file response includes a source-specific MIME type, `Content-Disposition`, `Content-Length`, `Accept-Ranges` and partial-response support. This is the path intended for a Kobo browser or another limited local client.
+- The public `/send` shell contains visible static Kindle, Kobo and LibreSend Local instructions. A browser that ignores JavaScript modules can still read the official routes and copy the local-app command.
+
+These fallbacks do not create proprietary device integrations. Kindle delivery remains the Kindle app share target, Amazon's web uploader or an approved Send to Kindle email. Kobo browser downloading varies by device and firmware, so the official USB workflow remains the universal fallback for non-protected EPUB and PDF files.
+
+Implementation boundaries:
+
+- The control server binds to loopback only and uses a random control path; receiving devices cannot access its controls.
+- One explicitly selected file; no folder browsing or directory traversal.
+- EPUB, PDF or MOBI only; 200 MiB hard limit inherited from LibreSend validation.
+- `GET` and `HEAD` only; no uploads, CORS or remote control.
+- `Cache-Control: no-store`, strict no-script landing page and safe attachment filenames.
+- Random 10-character unambiguous token and a 15-minute default lifetime.
+- OPDS 1.x acquisition entry for reader apps that support custom catalogues.
+
+### Direct command for scripts
+
+Automation can bypass the local interface and provide the file path directly:
+
+```sh
+npm run libresend:wifi -- "/path/to/book.epub"
+```
+
+That lower-level command uses the same receiving server and limits. The interactive `libresend` application is the supported route for ordinary users.
+
 The public LibreLeaf deployment leaves the relay disabled. The reference client can test and use a self-hosted HTTPS relay for the current page session; it never turns LibreLeaf into a file proxy.
 
 Self-hosters can keep the stock memory/filesystem host or load one reviewed local [host extension](./LIBRESEND_EXTENSIONS.md) for custom storage, policy and modules. Extension loading is off by default.

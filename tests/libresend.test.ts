@@ -17,6 +17,8 @@ import { handleLibreSendRelayRequest, LibreSendRelayCapacityError, MemoryLibreSe
 import { LibreSendTransportRegistry } from "../lib/libresend/transports.ts";
 import { FilesystemLibreSendRelayStore } from "../tools/libresend-relay/filesystem-store.ts";
 import { loadLocalLibreSendHostExtension } from "../tools/libresend-relay/load-extension.ts";
+import { createLibreSendWifiBridge } from "../tools/libresend-wifi/bridge.ts";
+import { createLibreSendLocalApp } from "../tools/libresend/app.ts";
 
 test("LibreSend accepts bounded EPUB, PDF and MOBI selections without reading file contents", () => {
   assert.deepEqual(checkReaderFile({ name: "book.epub", size: 1_024, type: "application/epub+zip" }), { ok: true, format: "EPUB" });
@@ -326,17 +328,22 @@ test("custom transports register explicitly and cannot silently replace one anot
 
 test("LibreSend exposes local and optional encrypted paths plus official device routes", async () => {
   const component = await readFile(new URL("../components/LibreSend.tsx", import.meta.url), "utf8");
+  const routes = await readFile(new URL("../components/LibreSendRoute.tsx", import.meta.url), "utf8");
   const page = await readFile(new URL("../app/send/page.tsx", import.meta.url), "utf8");
   const navigation = await readFile(new URL("../app/components/SiteNav.tsx", import.meta.url), "utf8");
 
   assert.match(component, /navigator\.share\(\{ files: \[selected\.file\], title: selected\.file\.name \}\)/);
-  assert.match(component, /download=\{selected\.file\.name\}/);
+  assert.match(routes, /download=\{fileName\}/);
   assert.match(component, /URL\.createObjectURL\(file\)/);
   assert.match(component, /URL\.revokeObjectURL/);
-  assert.match(component, /amazon\.co\.uk\/sendtokindle/);
-  assert.match(component, /help\.kobo\.com\/hc\/en-us\/articles\/360024775093/);
-  assert.match(component, /does not connect to Kindle or Kobo accounts/);
-  assert.match(component, /MOBI is not in Amazon/);
+  assert.match(routes, /amazon\.co\.uk\/sendtokindle/);
+  assert.match(routes, /help\.kobo\.com\/hc\/en-us\/articles\/360024775093/);
+  assert.match(routes, /15335985512983-Add-books-to-your-eReader-using-Google-Drive/);
+  assert.match(routes, /360033830114-Add-books-to-your-eReader-using-Dropbox/);
+  assert.match(routes, /MOBI/);
+  assert.match(routes, /npx --yes github:maxrobdev\/libreleaf/);
+  assert.match(routes, /OPDS/);
+  assert.match(component, /LIBRESEND_DESTINATIONS/);
   assert.match(component, /createEncryptedRelayTransfer/);
   assert.match(component, /receiveEncryptedRelayTransfer/);
   assert.match(component, /relayEndpoint \? "Connected" : "Off"/);
@@ -346,4 +353,101 @@ test("LibreSend exposes local and optional encrypted paths plus official device 
   assert.match(page, /alternates: \{ canonical: "\/send" \}/);
   assert.match(navigation, /href: "\/send"/);
   assert.match(navigation, /LibreSend/);
+});
+
+test("same-Wi-Fi bridge serves one bounded book without a cloud upload", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "libresend-wifi-"));
+  const filePath = join(directory, "A Reader's Book.epub");
+  const bytes = Buffer.from("0123456789abcdef", "utf8");
+  await writeFile(filePath, bytes);
+  const bridge = await createLibreSendWifiBridge({
+    filePath,
+    host: "127.0.0.1",
+    port: 0,
+    token: "TESTCDE2",
+    ttlMs: 60_000,
+  });
+  context.after(async () => {
+    await bridge.close();
+    await rm(directory, { recursive: true, force: true });
+  });
+
+  const address = bridge.addresses[0];
+  const page = await fetch(address);
+  assert.equal(page.status, 200);
+  assert.match(page.headers.get("content-security-policy") ?? "", /default-src 'none'/);
+  const pageBody = await page.text();
+  assert.match(pageBody, /A Reader&#39;s Book\.epub/);
+  assert.doesNotMatch(pageBody, /<script/i);
+  assert.match(pageBody, new RegExp(`href="/${bridge.token}/book"`));
+
+  const koboPage = await fetch(address, { headers: { "user-agent": "Mozilla/5.0 (Linux; U; en-US) Kobo Touch" } });
+  assert.equal(koboPage.status, 200);
+  assert.match(await koboPage.text(), /Download this book/);
+
+  const download = await fetch(`${address}/book`);
+  assert.equal(download.status, 200);
+  assert.equal(download.headers.get("content-type"), "application/epub+zip");
+  assert.match(download.headers.get("content-disposition") ?? "", /filename\*=UTF-8''A%20Reader's%20Book\.epub/);
+  assert.equal(download.headers.get("access-control-allow-origin"), null);
+  assert.deepEqual(Buffer.from(await download.arrayBuffer()), bytes);
+
+  const range = await fetch(`${address}/book`, { headers: { Range: "bytes=2-5" } });
+  assert.equal(range.status, 206);
+  assert.equal(range.headers.get("content-range"), "bytes 2-5/16");
+  assert.equal(await range.text(), "2345");
+
+  const head = await fetch(`${address}/book`, { method: "HEAD" });
+  assert.equal(head.status, 200);
+  assert.equal(head.headers.get("accept-ranges"), "bytes");
+  assert.equal(await head.text(), "");
+
+  const opds = await fetch(`${address}/opds`);
+  assert.match(opds.headers.get("content-type") ?? "", /application\/atom\+xml/);
+  assert.match(await opds.text(), /opds-spec\.org\/acquisition\/open-access/);
+
+  assert.equal((await fetch(address.replace("TESTCDE2", "WRNGCDE2"))).status, 404);
+});
+
+test("LibreSend Local provides a loopback web interface and exposes only the selected book", async (context) => {
+  const app = await createLibreSendLocalApp({
+    controlHost: "127.0.0.1",
+    controlPort: 0,
+    receiveHost: "127.0.0.1",
+    receivePort: 0,
+    controlToken: "TESTCONTROLTOKEN123456",
+    openBrowser: false,
+    ttlMs: 60_000,
+  });
+  context.after(() => app.close());
+
+  const controlPage = await fetch(app.url);
+  assert.equal(controlPage.status, 200);
+  assert.match(controlPage.headers.get("content-security-policy") ?? "", /connect-src 'self'/);
+  assert.match(await controlPage.text(), /LibreSend Local/);
+  assert.match(await (await fetch(app.url)).text(), /amazon\.co\.uk\/sendtokindle/);
+  assert.equal((await fetch(new URL("/", app.url))).status, 404);
+
+  const bytes = Buffer.from("first-party-local-app", "utf8");
+  const upload = await fetch(new URL("api/file", app.url), {
+    method: "PUT",
+    headers: {
+      "content-type": "application/epub+zip",
+      "x-libresend-file-name": encodeURIComponent("Local Reader.epub"),
+      "x-libresend-file-size": String(bytes.length),
+    },
+    body: bytes,
+  });
+  assert.equal(upload.status, 201);
+  const payload = await upload.json() as { active: { fileName: string; addresses: string[]; opdsAddresses: string[] } };
+  assert.equal(payload.active.fileName, "Local Reader.epub");
+  assert.equal(payload.active.addresses.length, 1);
+
+  const download = await fetch(`${payload.active.addresses[0]}/book`);
+  assert.equal(download.headers.get("content-type"), "application/epub+zip");
+  assert.deepEqual(Buffer.from(await download.arrayBuffer()), bytes);
+  assert.match(await (await fetch(payload.active.opdsAddresses[0])).text(), /Local Reader\.epub/);
+
+  const removed = await fetch(new URL("api/file", app.url), { method: "DELETE" });
+  assert.deepEqual(await removed.json(), { active: null });
 });

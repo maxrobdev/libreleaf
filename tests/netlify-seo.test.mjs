@@ -7,7 +7,7 @@ const pages = [
   { file: "netlify/search/index.html", path: "/search", title: "Search open-access books | LibreLeaf", noindex: true },
   { file: "netlify/lists/index.html", path: "/lists", title: "Curated open book lists | LibreLeaf" },
   { file: "netlify/brief/index.html", path: "/brief", title: "Briefleaf RSS to EPUB | LibreLeaf" },
-  { file: "netlify/send/index.html", path: "/send", title: "LibreSend — Local and encrypted ebook handoff | LibreLeaf" },
+  { file: "netlify/send/index.html", path: "/send", title: "LibreSend — Send EPUB and PDF to phones, Kindle and Kobo | LibreLeaf" },
   { file: "netlify/guides/index.html", path: "/guides", title: "Ebook and open reading guides | LibreLeaf" },
   { file: "netlify/developers/index.html", path: "/developers", title: "Open book resolver API and MCP | LibreLeaf" },
   { file: "netlify/docs/index.html", path: "/docs", title: "Technical documentation | LibreLeaf" },
@@ -46,6 +46,7 @@ test("the static sitemap covers every public route", async () => {
     "/guides/read-free-books-on-phone/",
     "/guides/open-epub-on-android/",
     "/guides/open-epub-on-iphone-ipad/",
+    "/guides/send-books-over-wifi-libresend/",
     "/guides/send-ebook-to-kindle/",
     "/guides/add-ebook-to-kobo/",
     "/guides/use-calibre-open-books/",
@@ -78,4 +79,12 @@ test("OpenAI search crawling can reach docs without crawling resolver traffic", 
   const robots = await readFile(new URL("../public/robots.txt", import.meta.url), "utf8");
   assert.match(robots, /User-agent: OAI-SearchBot\nAllow: \/\nDisallow: \/api\/\nDisallow: \/mcp/);
   assert.doesNotMatch(robots, /Disallow: \/docs/);
+});
+
+test("LibreSend keeps useful Kindle and Kobo instructions without module JavaScript", async () => {
+  const html = await readFile(new URL("../netlify/send/index.html", import.meta.url), "utf8");
+  assert.match(html, /E-READER FALLBACK/);
+  assert.match(html, /amazon\.co\.uk\/sendtokindle/);
+  assert.match(html, /Kobo USB fallback/);
+  assert.match(html, /npx --yes github:maxrobdev\/libreleaf/);
 });

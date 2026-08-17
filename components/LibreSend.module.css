@@ -7,6 +7,7 @@
 
 .hero,
 .receive,
+.destinationSection,
 .workspace,
 .deviceSection,
 .boundary,
@@ -61,7 +62,7 @@
 }
 
 .hero {
-  padding: 68px 0 48px;
+  padding: 44px 0 34px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, .65fr);
   align-items: end;
@@ -80,15 +81,15 @@
 .hero h1 {
   margin: 0;
   font-family: var(--font-display), serif;
-  font-size: clamp(64px, 9vw, 108px);
-  font-weight: 600;
-  line-height: .78;
+  font-size: clamp(56px, 7vw, 84px);
+  font-weight: 500;
+  line-height: .86;
   letter-spacing: -.06em;
 }
 
 .hero > div > p:last-child {
   max-width: 600px;
-  margin: 28px 0 0;
+  margin: 18px 0 0;
   color: var(--muted);
   font-size: 14px;
   line-height: 1.65;
@@ -122,11 +123,64 @@
   font-weight: 700;
 }
 
+.destinationSection,
 .workspace,
 .deviceSection {
-  padding: 48px 0;
+  padding: 36px 0;
   border-bottom: 1px solid var(--line);
 }
+
+.destinationGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.destinationGrid button {
+  min-width: 0;
+  min-height: 112px;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 5px 11px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, .2);
+  color: var(--ink);
+  font-family: var(--font-sans), sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.destinationGrid button:hover { background: rgba(255, 255, 255, .48); }
+.destinationGrid button:focus-visible { position: relative; z-index: 1; outline: 2px solid #346795; outline-offset: -2px; }
+.destinationGrid button.destinationSelected { background: var(--ink); color: white; }
+.destinationGrid button > span { grid-row: 1 / span 2; width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 7px; font-weight: 600; letter-spacing: .05em; }
+.destinationGrid strong { overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.destinationGrid small { grid-column: 2; color: currentColor; font-size: 9px; opacity: .66; }
+.destinationGrid b { grid-column: 3; grid-row: 1 / span 2; font-size: 15px; font-weight: 400; }
+
+.localAppPromo {
+  margin-top: 12px;
+  padding: 17px 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, auto) auto;
+  align-items: center;
+  gap: 16px 28px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .24);
+}
+
+.localAppPromo p { margin: 0 0 3px; color: var(--muted); font-size: 7px; font-weight: 700; letter-spacing: .13em; }
+.localAppPromo h3 { margin: 0; font: 500 18px/1.1 var(--font-display), serif; }
+.localAppPromo span { display: block; max-width: 540px; margin-top: 5px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.localAppPromo code { min-width: 0; padding: 9px 11px; overflow-x: auto; border-radius: 2px; background: #1a2922; color: #edf1e9; font: 9px/1.4 var(--font-mono, ui-monospace), monospace; white-space: nowrap; }
+.localAppPromo nav { display: grid; gap: 4px; }
+.localAppPromo a { color: var(--ink); font-size: 9px; font-weight: 500; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; white-space: nowrap; }
 
 .toolHeader {
   margin-bottom: 22px;
@@ -163,8 +217,8 @@
 }
 
 .picker {
-  min-height: 260px;
-  padding: 34px;
+  min-height: 180px;
+  padding: 26px;
   display: grid;
   place-content: center;
   justify-items: center;
@@ -224,6 +278,130 @@
   background: #fffefa;
   box-shadow: 0 12px 38px rgba(43, 42, 36, .08);
 }
+
+.routePlan {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.routeHeading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.routeHeading > span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.routeHeading p {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: .12em;
+}
+
+.routeHeading h2 {
+  margin: 0;
+  font-family: var(--font-display), serif;
+  font-size: clamp(29px, 4vw, 42px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -.035em;
+}
+
+.routeLead,
+.routeWarning {
+  max-width: 760px;
+  margin: 15px 0 0;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.routeLead { color: var(--muted); }
+.routeWarning { padding: 10px 12px; border-left: 2px solid #a47b36; background: rgba(164, 123, 54, .07); color: #5f4b28; }
+
+.routeActions {
+  margin-top: 17px;
+  display: flex;
+  align-items: stretch;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.routePrimary,
+.routeSecondary {
+  min-height: 42px;
+  padding: 10px 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  font: 500 10px var(--font-sans), sans-serif;
+  cursor: pointer;
+}
+
+.routePrimary { background: var(--ink); color: white; }
+.routePrimary:hover { background: #0c2118; }
+.routePrimary:disabled { cursor: wait; opacity: .6; }
+.routeSecondary { background: transparent; color: var(--ink); }
+.routeSecondary:hover { background: rgba(24, 49, 38, .04); }
+
+.instructionGrid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.instructionGrid article {
+  min-width: 0;
+  padding: 18px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.instructionGrid h3 { margin: 0; font-family: var(--font-display), serif; font-size: 21px; font-weight: 500; }
+.instructionGrid ol,
+.wifiSteps { margin: 13px 0; padding: 0; display: grid; gap: 8px; counter-reset: route-step; list-style: none; }
+.instructionGrid li,
+.wifiSteps li { position: relative; padding-left: 25px; color: var(--ink); font-size: 10px; line-height: 1.45; counter-increment: route-step; }
+.instructionGrid li::before,
+.wifiSteps li::before { content: counter(route-step); position: absolute; left: 0; top: 0; width: 17px; height: 17px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); font-size: 7px; }
+.instructionGrid p { margin: 12px 0 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.instructionGrid a,
+.miniLinks a,
+.sourceLink,
+.routeNote a { display: inline-block; color: var(--ink); font-size: 9px; font-weight: 500; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+
+.miniLinks { display: flex; align-items: center; gap: 8px 13px; flex-wrap: wrap; }
+.routeNote { margin-top: 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.routeNote summary { padding: 11px 0; color: var(--ink); font-size: 10px; font-weight: 500; cursor: pointer; }
+.routeNote p { max-width: 760px; margin: 0 0 9px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.routeNote a { margin-bottom: 12px; }
+.sourceLink { margin-top: 12px; }
+
+.commandBlock {
+  margin-top: 18px;
+  padding: 14px;
+  display: grid;
+  gap: 7px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: #1a2922;
+  color: #edf1e9;
+}
+
+.commandBlock code { font: 10px/1.45 var(--font-mono, ui-monospace), monospace; white-space: nowrap; }
+.wifiSteps { max-width: 760px; margin-top: 18px; }
 
 .fileIdentity {
   padding-bottom: 22px;
@@ -670,6 +848,7 @@
 @media (max-width: 760px) {
   .hero,
   .receive,
+  .destinationSection,
   .workspace,
   .deviceSection,
   .boundary,
@@ -694,10 +873,17 @@
     margin-top: 22px;
   }
 
+  .destinationSection,
   .workspace,
   .deviceSection {
     padding: 36px 0;
   }
+
+  .destinationGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .destinationGrid button { min-height: 96px; padding: 14px; }
+  .localAppPromo { grid-template-columns: 1fr; gap: 13px; }
+  .localAppPromo code { width: 100%; }
+  .localAppPromo nav { display: flex; gap: 8px 15px; flex-wrap: wrap; }
 
   .toolHeader {
     align-items: start;
@@ -724,9 +910,13 @@
   }
 
   .actions,
-  .deviceGrid {
+  .deviceGrid,
+  .instructionGrid {
     grid-template-columns: 1fr;
   }
+
+  .routeActions { display: grid; grid-template-columns: 1fr; }
+  .routePrimary, .routeSecondary { width: 100%; min-height: 46px; }
 
   .relayActions {
     grid-template-columns: 1fr;

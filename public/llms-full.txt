@@ -119,11 +119,15 @@ Reference: https://libreleaf-books.netlify.app/docs/resolver-index/
 
 LibreSend provides local system share, local save and lawful-link handoff for EPUB, PDF and MOBI. These modes do not need a LibreLeaf server.
 
+LibreSend Local is the maintained first-party computer application. Running `npx --yes github:maxrobdev/libreleaf` opens a random-path control interface on localhost. The user selects one file there; the process exposes only that file at a random 15-minute LAN address and a one-entry OPDS feed. The receiver page has no JavaScript or directory listing and supports byte ranges. Temporary files use mode 0600 and are removed on replacement, explicit removal, expiry or shutdown. The LAN route uses local HTTP and is for trusted Wi-Fi only.
+
 The optional self-hosted relay encrypts the entire file in the sender's browser with AES-256-GCM, uploads only an opaque expiring envelope and places the key plus relay origin in the URL fragment. Retrieval is atomic and one-use. Reference storage can be memory, local filesystem or a reviewed custom adapter.
 
 The public LibreLeaf deployment does not operate a relay. A reader must explicitly connect a compatible self-hosted HTTPS relay. LibreSend does not claim proprietary Kindle or Kobo wireless integration.
 
-Reference: https://libreleaf-books.netlify.app/docs/libresend/
+User guide: https://libreleaf-books.netlify.app/guides/send-books-over-wifi-libresend/
+
+Technical reference: https://libreleaf-books.netlify.app/docs/libresend/
 
 ## Briefleaf
 

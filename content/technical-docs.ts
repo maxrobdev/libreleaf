@@ -297,41 +297,55 @@ npm run resolver:index -- search \
   {
     slug: "libresend",
     title: "LibreSend framework",
-    description: "Local file handoff, optional encrypted one-use relay, self-hosted storage and extension contracts for EPUB, PDF and MOBI.",
+    description: "Send EPUB and PDF files to phones, Kindle and Kobo through system share, official services, same-Wi-Fi delivery or an optional encrypted relay.",
     category: "File transfer",
     updated: "2026-08-17",
     sections: [
       {
-        heading: "Transport model",
+        heading: "Choose the destination",
         paragraphs: [
-          "LibreSend separates a file or lawful source link from the transport used to move it. Local system share passes a File to the browser's Web Share implementation. Local save uses a short-lived object URL. Link handoff shares the original source URL without proxying the book through LibreLeaf.",
-          "The public LibreLeaf site does not operate a file relay. Local share and save need no server. A reader can explicitly connect a compatible self-hosted HTTPS relay for the current page session.",
+          "Open /send, choose Phone or tablet, Kindle, Kobo or Same Wi-Fi, then choose one EPUB, PDF or MOBI file. LibreSend keeps that selection in the browser and reveals only the routes that apply to the chosen destination. Changing the destination does not require selecting the file again.",
+          "Local system share passes the real File to the operating-system share sheet. Local save uses a short-lived browser object URL. LibreLeaf does not receive either file. A lawful source link can also be shared without proxying the linked book.",
         ],
       },
       {
-        heading: "Encrypted relay",
+        heading: "Phones and tablets",
         paragraphs: [
-          "Optional relay mode encrypts the complete file in the sender's browser with AES-256-GCM. The relay receives an opaque expiring envelope. The decryption key and selected relay origin are placed after the receive-link fragment, which browsers do not send in the HTTP request.",
-          "Retrieval is atomic and destructive. The reference relay applies exact CORS origins, byte and TTL bounds, per-address request budgets, no-store headers and one-use reads. The operator can still observe network metadata, timing, envelope size and transfer identifiers, so self-hosting does not remove operational responsibility.",
+          "On iPhone or iPad, tap Open share sheet and choose Books, Kindle or another installed reader. If it is not listed, choose More or save to Files first. Enable iCloud Drive and Books in iCloud settings only if you want Apple Books imports to sync to other Apple devices.",
+          "On Android, tap Open share sheet and choose Kindle, KOReader or an installed EPUB/PDF reader. If the browser cannot share files, save the file, open Downloads and use Open with. The operating system controls which apps appear; a website cannot silently choose one.",
         ],
       },
       {
-        heading: "Self-host",
-        code: `LIBRESEND_ALLOWED_ORIGINS=https://books.example.org \
-  docker compose -f compose.libresend.yaml up -d --build`,
+        heading: "Kindle and Kobo",
+        paragraphs: [
+          "For Kindle on a phone, use the share sheet and choose the Kindle app. On a computer, open Amazon's Send to Kindle page, select the same local file and sync the Kindle. Amazon's current web route accepts EPUB and PDF files up to 200 MB; its current list does not include MOBI. Email accepts up to 25 attachments totalling 50 MB from an approved sender address.",
+          "For Kobo Forma, Sage, Elipsa, Elipsa 2E and Libra Colour, link Google Drive or Dropbox under More → Settings → Accounts, put the non-protected EPUB or PDF in the Kobo folder and sync. For every Kobo model, save the file, connect the reader by USB, copy it to KOBOeReader, eject and open My Books.",
+          "The static /send document contains a readable e-reader fallback when an older browser cannot run JavaScript modules. It preserves instructions and official links only; it does not turn the Kindle browser into an undocumented import route.",
+        ],
+        note: "Amazon and Kobo do not expose a general browser API that lets LibreLeaf push a selected file into an account. LibreSend uses their supported, user-controlled routes and says when the file must be selected again.",
+      },
+      {
+        heading: "LibreSend Local",
+        paragraphs: [
+          "LibreSend Local is the first-party program for computer-to-device delivery. One command opens a private localhost web interface. Choose a book there and the program serves only that file to another device on the same network. It displays a random expiring download address plus a one-book OPDS acquisition feed. Its e-ink-friendly receiving page has no JavaScript, exposes no directory listing, supports byte-range downloads and closes after 15 minutes or when the program stops.",
+        ],
+        code: `npx --yes github:maxrobdev/libreleaf`,
         bullets: [
-          "Memory storage is disposable and single-process.",
-          "Filesystem storage uses atomic mode-0600 objects for one host with a local volume.",
-          "A custom store must implement atomic destructive take and independent expiry.",
-          "A trusted host extension can provide custom storage, request policy and lifecycle hooks, but runs with full process privileges.",
-          "Remote extension loading, directory scanning and hot reload are deliberately excluded.",
+          "The localhost control interface is available only on the computer and uses a random control path.",
+          "Choose or drop one EPUB, PDF or MOBI in the local browser interface; no terminal file path is required.",
+          "The receiving page uses no JavaScript, no web fonts and conservative HTML/CSS; EPUB/PDF responses include attachment type, content length and byte-range support.",
+          "Keep both devices on the same trusted Wi-Fi.",
+          "Open the printed HTTP address in the e-reader browser, or add the printed /opds address to a compatible reading app.",
+          "Download the book, then use Remove book, Close LibreSend or Ctrl+C. The receiving link also expires automatically.",
+          "Local HTTP is not encrypted. The random path limits accidental discovery but does not make an untrusted network safe.",
+          "For a permanent library, use an authenticated calibre Content server instead of leaving this temporary bridge running.",
         ],
       },
       {
-        heading: "SDK boundary",
+        heading: "Optional encrypted relay and SDK",
         paragraphs: [
-          "lib/libresend/index.ts exports validation, browser transports, encryption, relay client, portable Fetch handler, storage interfaces and the transport registry without depending on React. Privacy-bounded modules can see method, path, origin, byte count and timestamps but never plaintext, keys or encrypted bodies.",
-          "LibreSend does not claim a proprietary Kindle or Kobo wireless API. System share, official Send to Kindle and documented USB workflows remain clearly separate destinations.",
+          "The public LibreLeaf site does not operate a file relay. A reader may explicitly connect a compatible self-hosted HTTPS relay for the current page session. Relay mode encrypts the complete file in the sender's browser with AES-256-GCM, uploads only an opaque expiring envelope and keeps the decryption key in the receive-link fragment. Retrieval is atomic and destructive.",
+          "lib/libresend/index.ts exports validation, browser transports, encryption, relay client, portable Fetch handler, storage interfaces and the transport registry without depending on React. Privacy-bounded modules can see method, path, origin, byte count and timestamps but never plaintext, keys or encrypted bodies. Operators remain responsible for network metadata, retention, abuse and jurisdiction.",
         ],
       },
     ],
@@ -340,6 +354,9 @@ npm run resolver:index -- search \
       { label: "Host extension contract", url: "https://github.com/maxrobdev/libreleaf/blob/main/docs/LIBRESEND_EXTENSIONS.md" },
       { label: "LibreSend source", url: "https://github.com/maxrobdev/libreleaf/tree/main/lib/libresend" },
       { label: "Web Share API", url: "https://www.w3.org/TR/web-share/" },
+      { label: "Amazon Send to Kindle", url: "https://digprjsurvey.amazon.co.uk/csad/help/node/G5WYD9SAF7PGXRNA" },
+      { label: "Apple Books on iPhone", url: "https://support.apple.com/en-gb/guide/iphone/iphab2193d5/ios" },
+      { label: "calibre Content server", url: "https://manual.calibre-ebook.com/server.html" },
     ],
     related: ["briefleaf", "resolver-index", "api"],
   },

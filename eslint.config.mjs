@@ -13,6 +13,7 @@ const eslintConfig = defineConfig([
     "dist/**",
     "out/**",
     "build/**",
+    "tools/libresend/dist/**",
     "next-env.d.ts",
   ]),
   eslint.configs.recommended,

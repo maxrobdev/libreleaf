@@ -16,11 +16,9 @@ import {
   normaliseRelayUrl,
   receiveEncryptedRelayTransfer,
 } from "../lib/libresend/client";
+import { LIBRESEND_DESTINATIONS, LibreSendRoute, type LibreSendDestination } from "./LibreSendRoute";
 import styles from "./LibreSend.module.css";
 
-const SEND_TO_KINDLE_URL = "https://www.amazon.co.uk/sendtokindle";
-const SEND_TO_KINDLE_HELP_URL = "https://digprjsurvey.amazon.co.uk/csad/help/node/G5WYD9SAF7PGXRNA";
-const KOBO_IMPORT_HELP_URL = "https://help.kobo.com/hc/en-us/articles/360024775093-Add-non-protected-PDF-and-ePub-files-to-your-Kobo-eReader-using-your-computer";
 const LIBRESEND_DOCS_URL = "https://github.com/maxrobdev/libreleaf/blob/main/docs/LIBRESEND.md";
 
 type SelectedReaderFile = {
@@ -54,6 +52,7 @@ function configuredRelay(explicit: string | undefined) {
 }
 
 export function LibreSend({ relayUrl }: { relayUrl?: string }) {
+  const [destination, setDestination] = useState<LibreSendDestination>("phone");
   const [selected, setSelected] = useState<SelectedReaderFile | null>(null);
   const [fileError, setFileError] = useState("");
   const [handoff, setHandoff] = useState<HandoffState>({ kind: "idle" });
@@ -218,14 +217,14 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
 
       <header className={styles.hero}>
         <div>
-          <p className={styles.eyebrow}>LOCAL-FIRST FILE HANDOFF</p>
+          <p className={styles.eyebrow}>EBOOK DELIVERY</p>
           <h1>LibreSend</h1>
-          <p>Move an EPUB, PDF or MOBI with the system share sheet, or through an optional self-hosted encrypted relay.</p>
+          <p>Choose where the book needs to go. LibreSend shows the shortest route that device actually supports.</p>
         </div>
         <dl className={styles.privacyFacts} aria-label="LibreSend privacy properties">
-          <div><dt>Default</dt><dd>Local only</dd></div>
-          <div><dt>Account</dt><dd>None</dd></div>
-          <div><dt>Relay</dt><dd>{relayEndpoint ? "Connected" : "Off"}</dd></div>
+          <div><dt>File</dt><dd>EPUB, PDF, MOBI</dd></div>
+          <div><dt>Default</dt><dd>No upload</dd></div>
+          <div><dt>Private relay</dt><dd>{relayEndpoint ? "Connected" : "Off"}</dd></div>
         </dl>
       </header>
 
@@ -242,10 +241,42 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
         </section>
       ) : null}
 
+      <section className={styles.destinationSection} aria-labelledby="destination-title">
+        <div className={styles.toolHeader}>
+          <div><span>01</span><h2 id="destination-title">Where is it going?</h2></div>
+          <p>Pick a destination. You can change it without choosing the file again.</p>
+        </div>
+        <div className={styles.destinationGrid}>
+          {LIBRESEND_DESTINATIONS.map((item) => (
+            <button
+              className={destination === item.id ? styles.destinationSelected : undefined}
+              type="button"
+              aria-pressed={destination === item.id}
+              onClick={() => {
+                setDestination(item.id);
+                setHandoff({ kind: "idle" });
+              }}
+              key={item.id}
+            >
+              <span>{item.mark}</span><strong>{item.label}</strong><small>{item.detail}</small><b aria-hidden="true">→</b>
+            </button>
+          ))}
+        </div>
+        <aside className={styles.localAppPromo} aria-labelledby="local-app-title">
+          <div>
+            <p>FIRST-PARTY LOCAL APP</p>
+            <h3 id="local-app-title">Send from a computer without a cloud service</h3>
+            <span>One command opens LibreSend on localhost. Choose a book in its web interface, then open the private 15-minute address on the receiving device.</span>
+          </div>
+          <code>npx --yes github:maxrobdev/libreleaf</code>
+          <nav aria-label="LibreSend Local help"><a href="/guides/send-books-over-wifi-libresend">User instructions</a><a href="/docs/libresend">Technical reference</a></nav>
+        </aside>
+      </section>
+
       <section className={styles.workspace} aria-labelledby="select-file-title">
         <div className={styles.toolHeader}>
           <div>
-            <span>01</span>
+            <span>02</span>
             <h2 id="select-file-title">Choose a file</h2>
           </div>
           <p>One file · EPUB, PDF or MOBI · 200 MB maximum</p>
@@ -275,19 +306,15 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
               <button type="button" onClick={clearFile}>Remove</button>
             </div>
 
-            <div className={styles.actions}>
-              {selected.canShare ? (
-                <button type="button" className={styles.shareAction} onClick={shareFile} disabled={handoff.kind === "working"}>
-                  {handoff.kind === "working" ? "Opening share sheet…" : "Share with an app"}
-                  <span aria-hidden="true">↗</span>
-                </button>
-              ) : (
-                <p className={styles.unsupported}>File sharing is not available in this browser. Use the save or official device route.</p>
-              )}
-              <a className={styles.saveAction} href={selected.localUrl} download={selected.file.name}>
-                Save a local copy <span aria-hidden="true">↓</span>
-              </a>
-            </div>
+            <LibreSendRoute
+              destination={destination}
+              fileName={selected.file.name}
+              format={selected.format}
+              localUrl={selected.localUrl}
+              canShare={selected.canShare}
+              busy={handoff.kind === "working"}
+              onShare={() => void shareFile()}
+            />
 
             {relayEndpoint ? (
               <div className={styles.relayActions}>
@@ -307,7 +334,7 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
               aria-live="polite"
             >
               {handoff.kind === "idle"
-                ? "The operating system controls available share targets. LibreSend cannot choose or verify the destination."
+                ? "LibreSend keeps the file in this browser unless you choose a share, save, official service or self-hosted route."
                 : handoff.message}
             </p>
           </div>
@@ -343,53 +370,14 @@ export function LibreSend({ relayUrl }: { relayUrl?: string }) {
         </div>
       </details>
 
-      <section className={styles.deviceSection} aria-labelledby="device-routes-title">
-        <div className={styles.toolHeader}>
-          <div>
-            <span>02</span>
-            <h2 id="device-routes-title">Device routes</h2>
-          </div>
-          <p>Official instructions. LibreSend does not connect to Kindle or Kobo accounts.</p>
-        </div>
-
-        <div className={styles.deviceGrid}>
-          <article className={styles.deviceCard}>
-            <div className={styles.deviceName}><span>AMZ</span><h3>Kindle</h3></div>
-            <ol>
-              <li>For EPUB or PDF, open Amazon&apos;s Send to Kindle page.</li>
-              <li>Choose the same local file and add it to your library.</li>
-              <li>Sync the Kindle app or device.</li>
-            </ol>
-            <p>MOBI is not in Amazon&apos;s current Send to Kindle format list.</p>
-            <div className={styles.officialLinks}>
-              <a href={SEND_TO_KINDLE_URL} target="_blank" rel="noreferrer">Open Send to Kindle <span aria-hidden="true">↗</span></a>
-              <a href={SEND_TO_KINDLE_HELP_URL} target="_blank" rel="noreferrer">Amazon format help <span aria-hidden="true">↗</span></a>
-            </div>
-          </article>
-
-          <article className={styles.deviceCard}>
-            <div className={styles.deviceName}><span>KBO</span><h3>Kobo</h3></div>
-            <ol>
-              <li>Use a non-protected EPUB or PDF.</li>
-              <li>Connect the eReader, tap Connect, then open the KOBOeReader drive.</li>
-              <li>Copy the file, eject the drive and open My Books.</li>
-            </ol>
-            <p>Kobo&apos;s official USB guide does not list MOBI.</p>
-            <div className={styles.officialLinks}>
-              <a href={KOBO_IMPORT_HELP_URL} target="_blank" rel="noreferrer">Open Kobo import guide <span aria-hidden="true">↗</span></a>
-            </div>
-          </article>
-        </div>
-      </section>
-
       <aside className={styles.boundary} aria-label="Privacy boundary">
         <strong>Privacy boundary</strong>
-        <p>Local mode creates only a temporary browser URL. Relay mode encrypts the complete file before upload; the key stays in the link fragment and is not sent to the relay. A share destination may apply its own rules.</p>
+        <p>System share and local save stay on this device. Amazon, Google Drive and Dropbox receive a file only when you explicitly choose them. Same-Wi-Fi mode serves directly from your computer. Relay mode is separate, opt-in and client-encrypted.</p>
       </aside>
 
       <details className={styles.framework}>
         <summary>Self-host LibreSend</summary>
-        <p>Run the relay in memory, with persistent storage, or mount trusted local code for custom stores, policy and modules. The public LibreLeaf site does not run a relay.</p>
+        <p>Run the short-lived Wi-Fi bridge for one local book, or operate the encrypted relay with memory, persistent storage and custom policy modules. The public LibreLeaf site does not store transfer files.</p>
         <a href={LIBRESEND_DOCS_URL} target="_blank" rel="noreferrer">Server, modules and custom code ↗</a>
       </details>
 
